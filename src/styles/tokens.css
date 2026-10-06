@@ -1,0 +1,91 @@
+/*
+  Дизайн-токены Folio. Палитра «Полночь» (тёмно-синий + золото), выбрана на шаге 1.
+  Светлая тема — в :root. Тёмная — по системе iPhone или вручную через data-theme="dark" на <html>.
+  data-theme="light" принудительно включает светлую тему даже при тёмной системе.
+*/
+:root {
+  /* Шрифты: заголовки — Playfair Display, текст — системный шрифт iPhone */
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-head: "Playfair Display", Georgia, "Times New Roman", serif;
+  --head-weight: 600;
+  --head-track: -0.01em;
+
+  /* Цвета, светлая тема */
+  --accent: #1D2A73;
+  --on-accent: #FFFFFF;
+  --accent-inv: #8E9EEC;
+  --bg: #F3F4F7;
+  --surface: #FFFFFF;
+  --sunk: #E5E8EF;
+  --fg: #131729;
+  --fg-2: #555C74;
+  --fg-3: #8A8FA3;
+  --line: #DADDE7;
+  --gilt: #A8874E;
+  --gilt-inv: #CDAE6E;
+  --overdue: #A23F44;
+  --p1: #B5383E;
+  --p2: #B8832A;
+  --p3: #3E7F72;
+  --danger: #B5383E;
+  --on-danger: #FFFFFF;
+  --on-gilt: #1D1608;
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+  --shadow: 0 1px 2px rgba(16, 20, 40, 0.06), 0 14px 36px rgba(16, 20, 40, 0.1);
+
+  /* Зачёркивание: вариант C — неспешная золотистая линия */
+  --strike-color: var(--gilt);
+  --strike-w: 2px;
+  --strike-dur: 720ms;
+  --strike-ease: cubic-bezier(0.65, 0, 0.35, 1);
+  --done-opacity: 0.38;
+  --done-hold: 2600ms;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --accent: #8E9EEC;
+    --on-accent: #0A0E20;
+    --accent-inv: #1D2A73;
+    --bg: #0B0E17;
+    --surface: #131827;
+    --sunk: #070910;
+    --fg: #E7E9F2;
+    --fg-2: #9DA3BA;
+    --fg-3: #696F87;
+    --line: #232A3F;
+    --gilt: #CDAE6E;
+    --gilt-inv: #A8874E;
+    --overdue: #E5868A;
+    --p1: #E56C72;
+    --p2: #E3B45C;
+    --p3: #72C2AF;
+    --danger: #A9363C;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 14px 36px rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --accent: #8E9EEC;
+  --on-accent: #0A0E20;
+  --accent-inv: #1D2A73;
+  --bg: #0B0E17;
+  --surface: #131827;
+  --sunk: #070910;
+  --fg: #E7E9F2;
+  --fg-2: #9DA3BA;
+  --fg-3: #696F87;
+  --line: #232A3F;
+  --gilt: #CDAE6E;
+  --gilt-inv: #A8874E;
+  --overdue: #E5868A;
+  --p1: #E56C72;
+  --p2: #E3B45C;
+  --p3: #72C2AF;
+  --danger: #A9363C;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 14px 36px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
