@@ -41,6 +41,9 @@
   --done-opacity: 0.38;
   --done-hold: 2600ms;
 
+  /* Размеры */
+  --tabbar-h: 52px;
+
   color-scheme: light;
 }
 

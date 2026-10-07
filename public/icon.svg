@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Иконка Folio: лист с золотым уголком на тёмно-синем фоне, одна строка зачёркнута. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#28378A"/>
+      <stop offset="1" stop-color="#141C52"/>
+    </linearGradient>
+    <linearGradient id="fold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E2C78C"/>
+      <stop offset="1" stop-color="#A8874E"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <path d="M166 104H292L364 176V390A18 18 0 0 1 346 408H166A18 18 0 0 1 148 390V122A18 18 0 0 1 166 104Z" fill="#F6F1E7"/>
+  <path d="M292 104V158A18 18 0 0 0 310 176H364Z" fill="url(#fold)"/>
+  <rect x="184" y="226" width="144" height="18" rx="9" fill="#1D2A73" opacity=".55"/>
+  <rect x="184" y="276" width="112" height="18" rx="9" fill="#1D2A73" opacity=".3"/>
+  <line x1="174" y1="285" x2="308" y2="285" stroke="#B8954F" stroke-width="7" stroke-linecap="round"/>
+  <rect x="184" y="326" width="128" height="18" rx="9" fill="#1D2A73" opacity=".55"/>
+</svg>
