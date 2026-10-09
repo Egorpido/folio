@@ -48,6 +48,15 @@ button {
   color: var(--fg-2);
 }
 
+.group-note {
+  max-width: 60ch;
+  margin: 0;
+  padding: 10px 20px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg-2);
+}
+
 .placeholder {
   max-width: 40ch;
   margin: 0;

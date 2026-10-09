@@ -1,6 +1,8 @@
 <script lang="ts">
   import TabBar from './lib/TabBar.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
+  import StorageError from './lib/StorageError.svelte';
+  import { storage } from './lib/storage.svelte';
   import TodayScreen from './screens/TodayScreen.svelte';
   import ProjectsScreen from './screens/ProjectsScreen.svelte';
   import HabitsScreen from './screens/HabitsScreen.svelte';
@@ -21,23 +23,27 @@
   }
 </script>
 
-<main class="screen">
-  {#if tab === 'today'}
-    <TodayScreen />
-  {:else if tab === 'projects'}
-    <ProjectsScreen />
-  {:else if tab === 'habits'}
-    <HabitsScreen />
-  {:else}
-    <MoreScreen />
+{#if storage.error}
+  <StorageError />
+{:else}
+  <main class="screen">
+    {#if tab === 'today'}
+      <TodayScreen />
+    {:else if tab === 'projects'}
+      <ProjectsScreen />
+    {:else if tab === 'habits'}
+      <HabitsScreen />
+    {:else}
+      <MoreScreen />
+    {/if}
+  </main>
+
+  {#if pwa.needRefresh}
+    <UpdateBanner />
   {/if}
-</main>
 
-{#if pwa.needRefresh}
-  <UpdateBanner />
+  <TabBar current={tab} onselect={select} />
 {/if}
-
-<TabBar current={tab} onselect={select} />
 
 <style>
   .screen {

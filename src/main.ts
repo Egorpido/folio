@@ -5,10 +5,12 @@ import { mount } from 'svelte';
 import App from './App.svelte';
 import { applyTheme } from './lib/theme.svelte';
 import { startPwa } from './lib/pwa.svelte';
+import { initStorage } from './lib/storage.svelte';
 
 const target = document.getElementById('app');
 if (!target) throw new Error('Не найден контейнер #app');
 
 applyTheme();
 mount(App, { target });
+void initStorage();
 startPwa();

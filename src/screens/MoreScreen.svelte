@@ -2,13 +2,23 @@
   import ScreenHeader from '../lib/ScreenHeader.svelte';
   import { theme, setTheme, type ThemeChoice } from '../lib/theme.svelte';
   import { pwa } from '../lib/pwa.svelte';
+  import { storage } from '../lib/storage.svelte';
+  import { liveTaskCount } from '../lib/db/queries';
   import { buildLabel, isStandalone } from '../lib/env';
+  import { formatBytes } from '../lib/format';
 
   const themes: { id: ThemeChoice; label: string }[] = [
     { id: 'system', label: 'Как в системе' },
     { id: 'light', label: 'Светлая' },
     { id: 'dark', label: 'Тёмная' },
   ];
+
+  const taskCount = liveTaskCount();
+
+  const storageLabel = $derived(storage.error ? 'ошибка' : storage.ready ? 'работает' : 'проверяем…');
+  const protectionLabel = $derived(
+    storage.persisted === null ? 'проверяем…' : storage.persisted ? 'включена' : 'не включена',
+  );
 </script>
 
 <ScreenHeader title="Ещё" />
@@ -24,6 +34,37 @@
   </div>
 </section>
 
+<section class="group" aria-labelledby="g-data">
+  <h2 class="group-label" id="g-data">Данные</h2>
+  <dl class="rows">
+    <div class="row">
+      <dt>Хранилище</dt>
+      <dd class:warn={!!storage.error}>{storageLabel}</dd>
+    </div>
+    <div class="row">
+      <dt>Защита от очистки</dt>
+      <dd class:warn={storage.persisted === false}>{protectionLabel}</dd>
+    </div>
+    <div class="row">
+      <dt>Дел сохранено</dt>
+      <dd>{$taskCount ?? '…'}</dd>
+    </div>
+    <div class="row">
+      <dt>Занято места</dt>
+      <dd>{storage.usage === null ? '—' : formatBytes(storage.usage)}</dd>
+    </div>
+  </dl>
+  <p class="group-note">
+    Все дела хранятся только на этом iPhone.
+    {#if storage.persisted}
+      Защита включена: iPhone не будет сам стирать их при нехватке места.
+    {:else if storage.persisted === false}
+      iPhone может стереть их при нехватке места, поэтому резервные копии особенно важны.
+    {/if}
+    Если удалить Folio с экрана «Домой», дела удалятся вместе с ним. Резервные копии в файл появятся на шаге 7.
+  </p>
+</section>
+
 <section class="group" aria-labelledby="g-about">
   <h2 class="group-label" id="g-about">О приложении</h2>
   <dl class="rows">
@@ -33,7 +74,7 @@
     </div>
     <div class="row">
       <dt>Открыто</dt>
-      <dd>{isStandalone ? 'как приложение' : 'в браузере'}</dd>
+      <dd class:warn={!isStandalone}>{isStandalone ? 'как приложение' : 'в браузере'}</dd>
     </div>
     <div class="row">
       <dt>Без интернета</dt>
@@ -98,5 +139,10 @@
     margin: 0;
     color: var(--fg-2);
     text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  dd.warn {
+    color: var(--overdue);
   }
 </style>
