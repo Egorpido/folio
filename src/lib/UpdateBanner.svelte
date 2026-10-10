@@ -10,13 +10,8 @@
 
 <style>
   .banner {
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 10px);
-    z-index: 30;
     max-width: 536px;
-    margin-inline: auto;
+    margin: 0 12px 10px;
     display: flex;
     align-items: center;
     justify-content: space-between;

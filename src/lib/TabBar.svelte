@@ -42,11 +42,6 @@
 
 <style>
   .tabbar {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 20;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     padding-inline: 8px;
