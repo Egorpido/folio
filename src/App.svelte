@@ -15,9 +15,13 @@
 
   let tab = $state<Tab>('today');
   let scroller = $state<HTMLElement>();
+  let tabBarHeight = $state(0);
 
-  // Пока пишешь дело, вкладки не нужны: поле ввода стоит вплотную над клавиатурой.
-  const hideTabs = $derived(ui.composing && viewport.keyboardOpen);
+  // С открытой клавиатурой вкладки не нужны: они плавно гаснут и уходят под клавиатуру —
+  // оболочка продлевается вниз ровно на их высоту, поэтому поле ввода встаёт вплотную
+  // над клавиатурой и ничего не прыгает.
+  const hideTabs = $derived(viewport.keyboardOpen);
+  const shellExtra = $derived(hideTabs ? tabBarHeight : 0);
 
   function select(next: Tab) {
     // Повторное нажатие на открытую вкладку возвращает к началу экрана, как в iOS.
@@ -61,7 +65,7 @@
 
 <!-- Оболочка повторяет видимую часть экрана: список сверху прокручивается сам по себе,
      нижняя панель всегда видна и с клавиатурой встаёт прямо над ней. -->
-<div class="shell">
+<div class="shell" style:--shell-extra="{shellExtra}px">
   {#if storage.error}
     <div class="scroller">
       <StorageError />
@@ -88,22 +92,25 @@
       {#if tab === 'today'}
         <Composer />
       {/if}
-      {#if !hideTabs}
+      <div class="tabs" class:hidden={hideTabs} inert={hideTabs} bind:clientHeight={tabBarHeight}>
         <TabBar current={tab} onselect={select} />
-      {/if}
+      </div>
     </div>
   {/if}
 </div>
 
 <style>
+  /* Высота меняется плавно — поле ввода поднимается вместе с клавиатурой.
+     Верх не анимируется: он должен точно повторять видимую область. */
   .shell {
     position: fixed;
     left: 0;
     right: 0;
     top: var(--vvtop, 0px);
-    height: var(--vvh, 100%);
+    height: calc(var(--vvh, 100%) + var(--shell-extra, 0px));
     display: flex;
     flex-direction: column;
+    transition: height 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
   .scroller {
@@ -121,5 +128,13 @@
 
   .dock {
     flex: none;
+  }
+
+  .tabs {
+    transition: opacity 0.2s ease;
+  }
+
+  .tabs.hidden {
+    opacity: 0;
   }
 </style>

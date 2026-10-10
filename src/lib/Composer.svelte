@@ -5,6 +5,7 @@
   // Черновик сохраняется на каждую букву: если приложение обновится в фоне, текст не пропадёт.
   const DRAFT_KEY = 'folio:draft';
 
+  let input = $state<HTMLInputElement>();
   let text = $state(readDraft());
   let error = $state('');
 
@@ -23,6 +24,38 @@
     } catch {
       // Без черновика тоже можно работать.
     }
+  }
+
+  /**
+   * iPhone при фокусе сдвигает весь экран к полю ввода, и это даёт рывок.
+   * Приём из библиотеки React Aria (Adobe): на мгновение уводим поле далеко вверх —
+   * iPhone считает его видимым и экран не двигает. Над клавиатурой поле ставит сама оболочка.
+   */
+  function hideFromAutoScroll(el: HTMLInputElement): void {
+    el.style.transform = 'translateY(-2000px)';
+    requestAnimationFrame(() => {
+      el.style.transform = '';
+    });
+  }
+
+  $effect(() => {
+    const el = input;
+    if (!el) return;
+    // Касание по ещё не активному полю: фокусируем его сами, уже с приёмом против сдвига.
+    const onTouchEnd = (event: TouchEvent) => {
+      if (document.activeElement === el) return;
+      event.preventDefault();
+      hideFromAutoScroll(el);
+      el.focus();
+    };
+    el.addEventListener('touchend', onTouchEnd, { passive: false });
+    return () => el.removeEventListener('touchend', onTouchEnd);
+  });
+
+  function onFocus() {
+    ui.composing = true;
+    // Фокус пришёл не от касания (например, с клавиатуры) — тот же приём.
+    if (input && !input.style.transform) hideFromAutoScroll(input);
   }
 
   async function submit(event: SubmitEvent) {
@@ -47,12 +80,13 @@
 <form class="bar" onsubmit={submit}>
   <div class="field">
     <input
+      bind:this={input}
       bind:value={text}
       oninput={() => {
         saveDraft(text);
         error = '';
       }}
-      onfocus={() => (ui.composing = true)}
+      onfocus={onFocus}
       onblur={() => (ui.composing = false)}
       type="text"
       name="title"
