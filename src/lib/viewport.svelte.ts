@@ -1,16 +1,32 @@
 /**
- * Видимая часть экрана. На iPhone клавиатура не сжимает страницу, а ложится поверх неё,
- * поэтому оболочка приложения (`.shell` в App.svelte) сама повторяет видимую область:
- * верх — переменная --vvtop, высота до клавиатуры — --vvh.
+ * Видимая часть экрана и клавиатура. На iPhone клавиатура не сжимает страницу, а ложится поверх.
+ * Оболочка приложения (`.shell` в App.svelte) стоит на всю высоту экрана (--fullh) и повторяет
+ * верх видимой области (--vvtop), а нижняя панель с полем ввода поднимается над клавиатурой сдвигом.
  */
-export const viewport = $state({ keyboardOpen: false });
+const KEYBOARD_KEY = 'folio:kb';
+
+function readKeyboard(): number {
+  try {
+    return Number(localStorage.getItem(KEYBOARD_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+export const viewport = $state({
+  /** Клавиатура открыта (по замеру видимой области). */
+  keyboardOpen: false,
+  /** Сколько пикселей снизу закрывает клавиатура сейчас. */
+  keyboard: 0,
+  /** Высота клавиатуры в прошлый раз: поле начинает подниматься одновременно с ней, не дожидаясь замера. */
+  lastKeyboard: readKeyboard(),
+});
 
 const root = document.documentElement;
 let fullHeight = 0;
 let lastWidth = 0;
 
-// Считаем прямо в обработчике события, без ожидания следующего кадра: так оболочка
-// не отстаёт от движения экрана ни на кадр.
+// Считаем прямо в обработчике события, без ожидания следующего кадра.
 function measure(): void {
   const vv = window.visualViewport;
   const height = vv ? vv.height : window.innerHeight;
@@ -24,9 +40,22 @@ function measure(): void {
   }
   fullHeight = Math.max(fullHeight, height, root.clientHeight);
 
-  root.style.setProperty('--vvh', `${Math.round(height)}px`);
+  const keyboard = Math.max(0, Math.round(fullHeight - height));
+  const open = keyboard > 150;
+
+  root.style.setProperty('--fullh', `${Math.round(fullHeight)}px`);
   root.style.setProperty('--vvtop', `${Math.round(Math.max(0, top))}px`);
-  viewport.keyboardOpen = fullHeight - height > 150;
+  viewport.keyboard = open ? keyboard : 0;
+  viewport.keyboardOpen = open;
+
+  if (open && keyboard !== viewport.lastKeyboard) {
+    viewport.lastKeyboard = keyboard;
+    try {
+      localStorage.setItem(KEYBOARD_KEY, String(keyboard));
+    } catch {
+      // Не запомнили — в следующий раз поле просто дождётся замера.
+    }
+  }
 }
 
 window.visualViewport?.addEventListener('resize', measure);

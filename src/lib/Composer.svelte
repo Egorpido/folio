@@ -113,11 +113,11 @@
 </form>
 
 <style>
+  /* Сплошной фон без размытия: панель двигается вместе с клавиатурой, и размытие
+     в каждом кадре движения было бы лишней работой для телефона. */
   .bar {
     padding: 8px 12px 10px;
-    background: color-mix(in srgb, var(--bg) 86%, transparent);
-    -webkit-backdrop-filter: saturate(1.6) blur(20px);
-    backdrop-filter: saturate(1.6) blur(20px);
+    background: var(--bg);
   }
 
   .field {
