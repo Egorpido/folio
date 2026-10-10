@@ -1,9 +1,13 @@
-/** Прокручивает страницу так, чтобы элемент оказался виден над нижней панелью и клавиатурой. */
-export function revealAboveDock(el: Element, dockCover: number): void {
+/** Прокручивает список (`.scroller`) так, чтобы элемент оказался виден целиком. */
+export function revealInScroller(el: HTMLElement): void {
+  const scroller = el.closest<HTMLElement>('.scroller');
+  if (!scroller) return;
+  const box = scroller.getBoundingClientRect();
   const rect = el.getBoundingClientRect();
-  const vv = window.visualViewport;
-  const top = (vv?.offsetTop ?? 0) + 12;
-  const bottom = (vv ? vv.offsetTop + vv.height : window.innerHeight) - dockCover - 12;
-  if (rect.bottom > bottom) window.scrollBy({ top: rect.bottom - bottom, behavior: 'smooth' });
-  else if (rect.top < top) window.scrollBy({ top: rect.top - top, behavior: 'smooth' });
+  const margin = 12;
+  if (rect.bottom > box.bottom - margin) {
+    scroller.scrollBy({ top: rect.bottom - box.bottom + margin, behavior: 'smooth' });
+  } else if (rect.top < box.top + margin) {
+    scroller.scrollBy({ top: rect.top - box.top - margin, behavior: 'smooth' });
+  }
 }

@@ -6,7 +6,7 @@
   import { ui } from '../lib/ui.svelte';
   import { formatDayLong } from '../lib/dates';
   import { groupForToday } from '../lib/tasks';
-  import { revealAboveDock } from '../lib/reveal';
+  import { revealInScroller } from '../lib/reveal';
   import { liveOpenTasks } from '../lib/db/queries';
 
   const tasks = liveOpenTasks();
@@ -25,10 +25,10 @@
     const id = ui.lastAddedId;
     void groups;
     if (!id) return;
-    const el = document.querySelector(`[data-task-id="${id}"]`);
+    const el = document.querySelector<HTMLElement>(`[data-task-id="${id}"]`);
     if (!el) return;
     ui.lastAddedId = '';
-    setTimeout(() => revealAboveDock(el, ui.dockCover), 240);
+    setTimeout(() => revealInScroller(el), 240);
   });
 </script>
 

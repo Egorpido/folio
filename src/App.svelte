@@ -14,81 +14,112 @@
   import type { Tab } from './lib/types';
 
   let tab = $state<Tab>('today');
-  let dockHeight = $state(0);
-  let tabBarHeight = $state(0);
+  let scroller = $state<HTMLElement>();
 
-  // Клавиатура ложится поверх низа экрана. Поднимаем нижнюю панель так, чтобы поле ввода
-  // встало прямо над клавиатурой, а вкладки остались под ней — как в обычных приложениях.
-  const lift = $derived(Math.max(0, viewport.keyboard - tabBarHeight));
-
-  $effect(() => {
-    ui.dockCover = lift > 0 ? dockHeight - tabBarHeight : dockHeight;
-  });
+  // Пока пишешь дело, вкладки не нужны: поле ввода стоит вплотную над клавиатурой.
+  const hideTabs = $derived(ui.composing && viewport.keyboardOpen);
 
   function select(next: Tab) {
     // Повторное нажатие на открытую вкладку возвращает к началу экрана, как в iOS.
     if (next === tab) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      scroller?.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     tab = next;
-    window.scrollTo(0, 0);
+    if (scroller) scroller.scrollTop = 0;
   }
 
-  // Прокрутка списка при открытой клавиатуре прячет её, как в приложениях iPhone.
-  function dismissKeyboard() {
-    if (ui.composing && document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  // Касание или прокрутка списка при открытой клавиатуре прячет её, как в приложениях iPhone.
+  function dismissKeyboard(event: PointerEvent) {
+    if (!ui.composing) return;
+    if (event.target instanceof Element && event.target.closest('input, textarea, button')) return;
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   }
+
+  $effect(() => {
+    const el = scroller;
+    if (!el) return;
+    el.addEventListener('pointerdown', dismissKeyboard);
+    return () => el.removeEventListener('pointerdown', dismissKeyboard);
+  });
+
+  // Когда список становится ниже (открылась клавиатура) или выше, его нижний край остаётся
+  // на месте, как в мессенджерах: дела рядом с полем ввода не уезжают за него.
+  $effect(() => {
+    const el = scroller;
+    if (!el) return;
+    let previous = el.clientHeight;
+    const observer = new ResizeObserver(() => {
+      const delta = previous - el.clientHeight;
+      previous = el.clientHeight;
+      if (delta) el.scrollTop += delta;
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  });
 </script>
 
-{#if storage.error}
-  <StorageError />
-{:else}
-  <main class="screen" style:--dock-h="{dockHeight}px" style:--lift="{lift}px" ontouchmove={dismissKeyboard}>
-    {#if tab === 'today'}
-      <TodayScreen />
-    {:else if tab === 'projects'}
-      <ProjectsScreen />
-    {:else if tab === 'habits'}
-      <HabitsScreen />
-    {:else}
-      <MoreScreen />
-    {/if}
-  </main>
-
-  <div class="dock" style:--lift="{lift}px" bind:clientHeight={dockHeight}>
-    {#if pwa.needRefresh}
-      <UpdateBanner />
-    {/if}
-    {#if tab === 'today'}
-      <Composer />
-    {/if}
-    <div bind:clientHeight={tabBarHeight}>
-      <TabBar current={tab} onselect={select} />
+<!-- Оболочка повторяет видимую часть экрана: список сверху прокручивается сам по себе,
+     нижняя панель всегда видна и с клавиатурой встаёт прямо над ней. -->
+<div class="shell">
+  {#if storage.error}
+    <div class="scroller">
+      <StorageError />
     </div>
-  </div>
-{/if}
+  {:else}
+    <div class="scroller" bind:this={scroller}>
+      <main class="screen">
+        {#if tab === 'today'}
+          <TodayScreen />
+        {:else if tab === 'projects'}
+          <ProjectsScreen />
+        {:else if tab === 'habits'}
+          <HabitsScreen />
+        {:else}
+          <MoreScreen />
+        {/if}
+      </main>
+    </div>
+
+    <div class="dock">
+      {#if pwa.needRefresh}
+        <UpdateBanner />
+      {/if}
+      {#if tab === 'today'}
+        <Composer />
+      {/if}
+      {#if !hideTabs}
+        <TabBar current={tab} onselect={select} />
+      {/if}
+    </div>
+  {/if}
+</div>
 
 <style>
-  .screen {
-    max-width: 560px;
-    min-height: 100svh;
-    margin-inline: auto;
-    padding-bottom: calc(var(--dock-h, 0px) + var(--lift, 0px) + 24px);
-  }
-
-  .dock {
+  .shell {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 0;
-    z-index: 20;
-    transform: translateY(calc(-1 * var(--lift, 0px)));
-    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
-    pointer-events: none;
+    top: var(--vvtop, 0px);
+    height: var(--vvh, 100%);
+    display: flex;
+    flex-direction: column;
   }
 
-  .dock > :global(*) {
-    pointer-events: auto;
+  .scroller {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+
+  .screen {
+    max-width: 560px;
+    margin-inline: auto;
+    padding-bottom: 24px;
+  }
+
+  .dock {
+    flex: none;
   }
 </style>
