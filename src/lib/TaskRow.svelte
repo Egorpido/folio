@@ -4,29 +4,228 @@
   import { clock } from './clock.svelte';
   import { formatDayShort } from './dates';
 
-  let { task, animate = false }: { task: Task; animate?: boolean } = $props();
+  export type SwipeDirection = 'left' | 'right';
 
-  const overdueLabel = $derived(
-    task.dueDate && task.dueDate < clock.today ? formatDayShort(task.dueDate, clock.today) : '',
+  let {
+    task,
+    animate = false,
+    swipeable = true,
+    restorable = false,
+    ontoggle,
+    onswipe,
+  }: {
+    task: Task;
+    animate?: boolean;
+    /** Свайп вправо — на завтра, влево — удалить. */
+    swipeable?: boolean;
+    /** Строка в «Выполнено»: справа подпись «Вернуть». */
+    restorable?: boolean;
+    ontoggle: (task: Task) => void;
+    onswipe?: (task: Task, direction: SwipeDirection) => void;
+  } = $props();
+
+  // На сколько пикселей нужно протянуть строку, чтобы свайп сработал.
+  const THRESHOLD = 84;
+
+  let row = $state<HTMLElement>();
+  let offset = $state(0);
+  let dragging = $state(false);
+  let leaving = $state(false);
+  let pressed = $state(false);
+
+  let pointerId = -1;
+  let startX = 0;
+  let startY = 0;
+  let mode: '' | 'swipe' | 'scroll' = '';
+
+  const done = $derived(!!task.completedAt);
+  const direction = $derived(offset > 0 ? 'right' : offset < 0 ? 'left' : '');
+  const armed = $derived(Math.abs(offset) > THRESHOLD);
+  const overdueFrom = $derived(
+    task.overdueSince ?? (task.dueDate && task.dueDate < clock.today ? task.dueDate : undefined),
   );
+  const overdueLabel = $derived(overdueFrom ? formatDayShort(overdueFrom, clock.today) : '');
+
+  function down(event: PointerEvent) {
+    if (leaving || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    pointerId = event.pointerId;
+    startX = event.clientX;
+    startY = event.clientY;
+    mode = '';
+    pressed = true;
+  }
+
+  function move(event: PointerEvent) {
+    if (event.pointerId !== pointerId) return;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    if (!mode) {
+      if (swipeable && !done && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        mode = 'swipe';
+        dragging = true;
+        pressed = false;
+        try {
+          // Палец может уйти со строки — продолжаем получать его движения.
+          row?.setPointerCapture(event.pointerId);
+        } catch {
+          // Захват не удался — свайп всё равно работает, пока палец над строкой.
+        }
+      } else if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+        mode = 'scroll';
+        pressed = false;
+      }
+    }
+    if (mode === 'swipe') offset = dx;
+  }
+
+  function up(event: PointerEvent) {
+    if (event.pointerId !== pointerId) return;
+    pointerId = -1;
+    pressed = false;
+    if (mode === 'swipe') {
+      dragging = false;
+      if (armed && onswipe) {
+        const dir: SwipeDirection = offset > 0 ? 'right' : 'left';
+        leaving = true;
+        // Строка улетает за край, потом действие — и строка плавно схлопывается.
+        offset = (dir === 'right' ? 1 : -1) * ((row?.offsetWidth ?? 440) + 40);
+        setTimeout(() => onswipe(task, dir), 200);
+      } else {
+        offset = 0;
+      }
+    } else if (!mode) {
+      ontoggle(task);
+    }
+    mode = '';
+  }
+
+  function cancel() {
+    pointerId = -1;
+    pressed = false;
+    dragging = false;
+    mode = '';
+    if (!leaving) offset = 0;
+  }
+
+  function key(event: KeyboardEvent) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      ontoggle(task);
+    }
+  }
 </script>
 
-<li class="task" data-task-id={task.id} data-pr={task.priority} in:slide={{ duration: animate ? 220 : 0 }}>
-  <span class="chk" aria-hidden="true">
-    <svg viewBox="0 0 24 24"><circle class="ring" cx="12" cy="12" r="10" /></svg>
-  </span>
-  <span class="body">
-    <span class="title">{task.title}</span>
-    {#if overdueLabel || task.dueTime}
-      <span class="meta">
-        {#if overdueLabel}<span class="overdue">{overdueLabel}</span>{/if}
-        {#if task.dueTime}<span>{task.dueTime}</span>{/if}
+<li class="row" data-task-id={task.id} transition:slide={{ duration: animate ? 320 : 0 }}>
+  {#if swipeable}
+    <div class="swipe" data-dir={direction} class:armed aria-hidden="true">
+      <span class="action tomorrow">
+        <svg viewBox="0 0 24 24"><path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5" /></svg>
+        Завтра
       </span>
+      <span class="action delete">
+        Удалить
+        <svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" /></svg>
+      </span>
+    </div>
+  {/if}
+  <div
+    bind:this={row}
+    class="task"
+    class:done
+    class:pressed
+    class:dragging
+    data-pr={task.priority}
+    style:transform={offset ? `translateX(${offset}px)` : undefined}
+    role="checkbox"
+    aria-checked={done}
+    tabindex="0"
+    onpointerdown={down}
+    onpointermove={move}
+    onpointerup={up}
+    onpointercancel={cancel}
+    onkeydown={key}
+  >
+    <span class="chk" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <circle class="ring" cx="12" cy="12" r="10" />
+        <circle class="fill" cx="12" cy="12" r="10" />
+        <path class="tick" d="M7.5 12.4l3.1 3.1 6-6.6" />
+      </svg>
+    </span>
+    <span class="body">
+      <span class="txt"><span class="strike">{task.title}</span></span>
+      {#if overdueLabel || task.dueTime}
+        <span class="meta">
+          {#if overdueLabel}<span class="overdue">{overdueLabel}</span>{/if}
+          {#if task.dueTime}<span>{task.dueTime}</span>{/if}
+        </span>
+      {/if}
+    </span>
+    {#if restorable}
+      <span class="restore">Вернуть</span>
     {/if}
-  </span>
+  </div>
 </li>
 
 <style>
+  .row {
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Подложка свайпа: золотая «Завтра» справа налево, бордовая «Удалить» слева направо. */
+  .swipe {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-inline: 22px;
+    font: 600 15px/1 var(--font-ui);
+  }
+
+  .swipe[data-dir='right'] {
+    background: var(--gilt);
+    color: var(--on-gilt);
+  }
+
+  .swipe[data-dir='left'] {
+    background: var(--danger);
+    color: var(--on-danger);
+  }
+
+  .action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    transition: opacity 0.15s, transform 0.2s;
+  }
+
+  .action svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .swipe[data-dir='right'] .tomorrow,
+  .swipe[data-dir='left'] .delete {
+    opacity: 0.6;
+  }
+
+  .swipe.armed .action {
+    transform: scale(1.06);
+  }
+
+  .swipe.armed[data-dir='right'] .tomorrow,
+  .swipe.armed[data-dir='left'] .delete {
+    opacity: 1;
+  }
+
   .task {
     --pc: var(--fg-3);
     position: relative;
@@ -35,6 +234,21 @@
     gap: 14px;
     min-height: 52px;
     padding: 9px 20px;
+    background: var(--bg);
+    cursor: pointer;
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    transition: transform 0.26s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.15s;
+  }
+
+  .task.dragging {
+    transition: background-color 0.15s;
+  }
+
+  .task.pressed {
+    background: color-mix(in srgb, var(--fg) 5%, var(--bg));
   }
 
   .task[data-pr='1'] {
@@ -60,7 +274,7 @@
     background: var(--line);
   }
 
-  .task:last-child::after {
+  .row:last-child .task::after {
     display: none;
   }
 
@@ -81,10 +295,43 @@
     fill: color-mix(in srgb, var(--pc) 9%, transparent);
     stroke: var(--pc);
     stroke-width: 1.6;
+    transition: stroke 0.25s;
   }
 
   .task[data-pr='0'] .ring {
     fill: none;
+  }
+
+  /* Кружок заполняется с лёгкой пружинкой, следом прорисовывается галочка. */
+  .fill {
+    fill: var(--accent);
+    transform: scale(0);
+    transform-origin: center;
+    transform-box: fill-box;
+    transition: transform 0.28s cubic-bezier(0.3, 1.45, 0.5, 1);
+  }
+
+  .tick {
+    fill: none;
+    stroke: var(--on-accent);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 14;
+    stroke-dashoffset: 14;
+    transition: stroke-dashoffset 0.22s ease 0.12s;
+  }
+
+  .done .ring {
+    stroke: var(--accent);
+  }
+
+  .done .fill {
+    transform: scale(1);
+  }
+
+  .done .tick {
+    stroke-dashoffset: 0;
   }
 
   .body {
@@ -95,10 +342,24 @@
     gap: 3px;
   }
 
-  .title {
+  .txt {
     font: 400 17px/1.32 var(--font-ui);
     color: var(--fg);
     overflow-wrap: anywhere;
+    transition: opacity 0.32s ease;
+  }
+
+  /* Неспешная золотистая линия (вариант C): тянется слева направо, на длинном тексте — по всем строкам. */
+  .strike {
+    background-image: linear-gradient(var(--strike-color), var(--strike-color));
+    background-repeat: no-repeat;
+    background-position: 0 58%;
+    background-size: 0% var(--strike-w);
+    transition: background-size var(--strike-dur) var(--strike-ease);
+  }
+
+  .done .strike {
+    background-size: 100% var(--strike-w);
   }
 
   .meta {
@@ -107,9 +368,22 @@
     gap: 4px 12px;
     font: 400 13px/1.25 var(--font-ui);
     color: var(--fg-2);
+    transition: opacity 0.32s ease;
+  }
+
+  .done .txt,
+  .done .meta {
+    opacity: var(--done-opacity);
+    transition-delay: calc(var(--strike-dur) * 0.35);
   }
 
   .overdue {
     color: var(--overdue);
+  }
+
+  .restore {
+    flex: none;
+    font: 500 14px/1 var(--font-ui);
+    color: var(--accent);
   }
 </style>

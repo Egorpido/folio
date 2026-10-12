@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from './db/schema';
+import { dateFromKey } from './dates';
 import { groupForToday } from './tasks';
 
 let counter = 0;
@@ -9,6 +10,7 @@ function task(title: string, extra: Partial<Task> = {}): Task {
 }
 
 const TODAY = '2026-10-10';
+const NOON = dateFromKey(TODAY).getTime() + 12 * 3600 * 1000;
 
 describe('раскладка дел на экране «Сегодня»', () => {
   it('без даты — во «Входящие», на сегодня — в «На сегодня», раньше — в «Просрочено»', () => {
@@ -21,26 +23,38 @@ describe('раскладка дел на экране «Сегодня»', () =>
     expect(groups.overdue).toEqual([late]);
   });
 
-  it('не показывает выполненные, удалённые, подзадачи и будущие дела', () => {
-    const groups = groupForToday(
-      [
-        task('Готово', { completedAt: 1 }),
-        task('Удалено', { deletedAt: 1 }),
-        task('Подзадача', { parentId: 'x' }),
-        task('Завтра', { dueDate: '2026-10-11' }),
-      ],
-      TODAY,
-    );
-    expect(groups).toEqual({ overdue: [], today: [], inbox: [] });
+  it('перенесённое на сегодня просроченное дело остаётся в «Просрочено»', () => {
+    const rolled = task('Оплатить счёт', { dueDate: TODAY, overdueSince: '2026-10-08' });
+    expect(groupForToday([rolled], TODAY).overdue).toEqual([rolled]);
   });
 
-  it('держит порядок добавления, а просроченные — от старых к новым', () => {
+  it('выполненные сегодня — в «Выполнено», вчерашние и удалённые не показываются', () => {
+    const doneToday = task('Сделано сегодня', { completedAt: NOON });
+    const doneYesterday = task('Сделано вчера', { completedAt: NOON - 24 * 3600 * 1000 });
+    const groups = groupForToday(
+      [doneToday, doneYesterday, task('Удалено', { deletedAt: 1 }), task('Подзадача', { parentId: 'x' })],
+      TODAY,
+    );
+    expect(groups).toEqual({ overdue: [], today: [], inbox: [], done: [doneToday] });
+  });
+
+  it('только что выполненное дело пару секунд остаётся на своём месте', () => {
+    const fresh = task('Купить цветы', { completedAt: NOON });
+    const groups = groupForToday([fresh], TODAY, new Set([fresh.id]));
+    expect(groups.inbox).toEqual([fresh]);
+    expect(groups.done).toEqual([]);
+  });
+
+  it('держит порядок добавления; просроченные — от старых к новым; выполненные — от последних', () => {
     const a = task('Первое');
     const b = task('Второе');
     const old = task('Давно', { dueDate: '2026-10-01' });
     const recent = task('Вчера', { dueDate: '2026-10-09' });
-    const groups = groupForToday([b, recent, a, old], TODAY);
+    const early = task('Утром', { completedAt: NOON - 3600 * 1000 });
+    const late = task('Днём', { completedAt: NOON });
+    const groups = groupForToday([b, recent, a, old, early, late], TODAY);
     expect(groups.inbox.map((t) => t.title)).toEqual(['Первое', 'Второе']);
     expect(groups.overdue.map((t) => t.title)).toEqual(['Давно', 'Вчера']);
+    expect(groups.done.map((t) => t.title)).toEqual(['Днём', 'Утром']);
   });
 });

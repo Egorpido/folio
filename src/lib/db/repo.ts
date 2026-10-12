@@ -49,6 +49,34 @@ export async function updateTask(id: string, patch: Patch<Task>): Promise<Task |
   });
 }
 
+export const completeTask = (id: string) => updateTask(id, { completedAt: Date.now() });
+
+export const uncompleteTask = (id: string) => updateTask(id, { completedAt: undefined });
+
+/**
+ * Несделанные дела с прошедших дней переезжают на сегодня. Дата, с которой дело просрочено,
+ * запоминается в overdueSince (при повторных переездах — самая первая). Возвращает число перенесённых.
+ */
+export async function rolloverOverdue(today: string): Promise<number> {
+  const at = Date.now();
+  return db.transaction('rw', db.tasks, db.changes, async () => {
+    const stale = await db.tasks
+      .filter((t) => !t.deletedAt && !t.completedAt && !!t.dueDate && t.dueDate < today)
+      .toArray();
+    for (const task of stale) {
+      const next = applyPatch(task, {
+        dueDate: today,
+        overdueSince: task.overdueSince ?? task.dueDate,
+        updatedAt: at,
+        rev: task.rev + 1,
+      });
+      await db.tasks.put(next);
+      await logChange('tasks', task.id, 'put', at);
+    }
+    return stale.length;
+  });
+}
+
 /** Мягкое удаление: запись остаётся с отметкой deletedAt, поэтому удаление можно отменить. */
 export async function deleteTask(id: string): Promise<void> {
   const at = Date.now();

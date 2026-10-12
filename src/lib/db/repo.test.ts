@@ -1,7 +1,15 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from './db';
-import { createTask, deleteTask, restoreTask, updateTask } from './repo';
+import {
+  completeTask,
+  createTask,
+  deleteTask,
+  restoreTask,
+  rolloverOverdue,
+  uncompleteTask,
+  updateTask,
+} from './repo';
 
 beforeEach(async () => {
   await db.delete();
@@ -54,6 +62,34 @@ describe('хранилище дел', () => {
     const saved = await db.tasks.get(task.id);
     expect(saved?.deletedAt).toBeUndefined();
     expect(saved?.rev).toBe(3);
+  });
+
+  it('отмечает дело выполненным и возвращает обратно', async () => {
+    const task = await createTask({ title: 'Купить цветы' });
+    await completeTask(task.id);
+    expect((await db.tasks.get(task.id))?.completedAt).toBeTypeOf('number');
+    await uncompleteTask(task.id);
+    expect((await db.tasks.get(task.id))?.completedAt).toBeUndefined();
+  });
+
+  it('переносит несделанные дела с прошедших дней на сегодня и помнит, с какого дня они просрочены', async () => {
+    const late = await createTask({ title: 'Оплатить счёт', dueDate: '2026-10-10' });
+    const future = await createTask({ title: 'Врач', dueDate: '2026-10-20' });
+    const inbox = await createTask({ title: 'Без даты' });
+    const done = await createTask({ title: 'Сделано', dueDate: '2026-10-10', completedAt: 1 });
+    const gone = await createTask({ title: 'Удалено', dueDate: '2026-10-10' });
+    await deleteTask(gone.id);
+
+    expect(await rolloverOverdue('2026-10-12')).toBe(1);
+    expect(await db.tasks.get(late.id)).toMatchObject({ dueDate: '2026-10-12', overdueSince: '2026-10-10', rev: 2 });
+    expect((await db.tasks.get(future.id))?.dueDate).toBe('2026-10-20');
+    expect((await db.tasks.get(inbox.id))?.dueDate).toBeUndefined();
+    expect((await db.tasks.get(done.id))?.dueDate).toBe('2026-10-10');
+    expect((await db.tasks.get(gone.id))?.dueDate).toBe('2026-10-10');
+
+    // На следующий день дело переезжает снова, а дата начала просрочки остаётся первой.
+    expect(await rolloverOverdue('2026-10-13')).toBe(1);
+    expect(await db.tasks.get(late.id)).toMatchObject({ dueDate: '2026-10-13', overdueSince: '2026-10-10' });
   });
 
   it('не трогает несуществующее дело', async () => {

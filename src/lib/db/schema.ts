@@ -26,6 +26,11 @@ export interface Task extends SyncFields {
   dueDate?: string;
   /** Время «18:00», если указано. */
   dueTime?: string;
+  /**
+   * С какого дня дело просрочено. Несделанные дела с прошедших дней сами переезжают на сегодня
+   * (dueDate), а здесь остаётся исходная дата — по ней дело показывается в «Просрочено».
+   */
+  overdueSince?: string;
   /** Крайний срок «2026-10-15» (шаг 13). */
   deadline?: string;
   projectId?: string;

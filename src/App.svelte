@@ -2,6 +2,7 @@
   import TabBar from './lib/TabBar.svelte';
   import Composer from './lib/Composer.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
+  import Toast from './lib/Toast.svelte';
   import StorageError from './lib/StorageError.svelte';
   import TodayScreen from './screens/TodayScreen.svelte';
   import ProjectsScreen from './screens/ProjectsScreen.svelte';
@@ -11,7 +12,14 @@
   import { storage } from './lib/storage.svelte';
   import { ui } from './lib/ui.svelte';
   import { viewport } from './lib/viewport.svelte';
+  import { clock } from './lib/clock.svelte';
+  import { rolloverOverdue } from './lib/db/repo';
   import type { Tab } from './lib/types';
+
+  // Несделанные дела с прошедших дней переезжают на сегодня — при запуске и в полночь.
+  $effect(() => {
+    if (storage.ready) void rolloverOverdue(clock.today);
+  });
 
   let tab = $state<Tab>('today');
   let scroller = $state<HTMLElement>();
@@ -89,6 +97,7 @@
       {#if pwa.needRefresh}
         <UpdateBanner />
       {/if}
+      <Toast />
       {#if tab === 'today'}
         <Composer />
       {/if}
@@ -111,6 +120,7 @@
   .scroller {
     position: absolute;
     inset: 0;
+    overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior-y: contain;
   }
