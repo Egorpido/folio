@@ -44,6 +44,7 @@ function measure(): void {
   const open = keyboard > 150;
 
   root.style.setProperty('--fullh', `${Math.round(fullHeight)}px`);
+  root.style.setProperty('--vvh', `${Math.round(height)}px`);
   root.style.setProperty('--vvtop', `${Math.round(Math.max(0, top))}px`);
   viewport.keyboard = open ? keyboard : 0;
   viewport.keyboardOpen = open;
@@ -75,15 +76,53 @@ document.addEventListener('focusout', () => {
 });
 
 // С открытой клавиатурой iPhone позволяет таскать пальцем весь экран. Разрешаем движение
-// только внутри списка, и только если ему есть куда прокручиваться.
+// только внутри прокручиваемых областей (список, карточка дела), и только если им есть куда прокручиваться.
 document.addEventListener(
   'touchmove',
   (event) => {
     const target = event.target instanceof Element ? event.target : null;
-    const scroller = target?.closest('.scroller');
-    if (!scroller || scroller.scrollHeight <= scroller.clientHeight) event.preventDefault();
+    const area = target?.closest('.scroller, [data-scroll]');
+    if (!area || area.scrollHeight <= area.clientHeight) event.preventDefault();
   },
   { passive: false },
 );
+
+/** Поле, на котором iPhone откроет клавиатуру (а не, например, выбор даты). */
+function opensKeyboard(el: EventTarget | null): el is HTMLInputElement | HTMLTextAreaElement {
+  if (el instanceof HTMLTextAreaElement) return !el.readOnly && !el.disabled;
+  if (!(el instanceof HTMLInputElement) || el.readOnly || el.disabled) return false;
+  return ['text', 'search', 'email', 'tel', 'url', 'number', 'password'].includes(el.type);
+}
+
+/**
+ * iPhone при фокусе на поле сдвигает весь экран, чтобы показать поле над клавиатурой, — это рывок.
+ * Приём из Adobe React Aria (usePreventScroll): на мгновение уводим поле далеко вверх —
+ * iPhone считает его видимым и экран не двигает, а над клавиатурой поле ставит само приложение.
+ */
+function hideFromAutoScroll(el: HTMLElement): void {
+  el.style.transform = 'translateY(-2000px)';
+  requestAnimationFrame(() => {
+    el.style.transform = '';
+  });
+}
+
+// Касание по ещё не активному полю: фокусируем его сами, уже с приёмом против сдвига.
+document.addEventListener(
+  'touchend',
+  (event) => {
+    const el = event.target;
+    if (!opensKeyboard(el) || el === document.activeElement) return;
+    event.preventDefault();
+    hideFromAutoScroll(el);
+    el.focus();
+  },
+  { passive: false, capture: true },
+);
+
+// Фокус пришёл не от касания (например, кнопкой «Далее» на клавиатуре) — тот же приём.
+document.addEventListener('focusin', (event) => {
+  const el = event.target;
+  if (opensKeyboard(el) && !el.style.transform) hideFromAutoScroll(el);
+});
 
 measure();

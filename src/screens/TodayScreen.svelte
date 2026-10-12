@@ -22,6 +22,11 @@
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   const groups = $derived(groupForToday($tasks ?? [], clock.today, lingering));
   let showDone = $state(false);
+  let showUpcoming = $state(false);
+
+  function open(task: Task) {
+    ui.editingId = task.id;
+  }
 
   // При открытии список появляется сразу, а анимации включаются только для изменений.
   let animate = $state(false);
@@ -90,7 +95,7 @@
     <h2 class="group-label overdue" id="g-overdue">Просрочено</h2>
     <ul class="list">
       {#each groups.overdue as task (task.id)}
-        <TaskRow {task} {animate} ontoggle={toggle} onswipe={swipe} />
+        <TaskRow {task} {animate} ontoggle={toggle} onswipe={swipe} onopen={open} />
       {/each}
     </ul>
   </section>
@@ -101,7 +106,7 @@
   {#if groups.today.length}
     <ul class="list">
       {#each groups.today as task (task.id)}
-        <TaskRow {task} {animate} ontoggle={toggle} onswipe={swipe} />
+        <TaskRow {task} {animate} ontoggle={toggle} onswipe={swipe} onopen={open} />
       {/each}
     </ul>
   {:else if groups.done.length}
@@ -116,7 +121,7 @@
   {#if groups.inbox.length}
     <ul class="list">
       {#each groups.inbox as task (task.id)}
-        <TaskRow {task} {animate} ontoggle={toggle} onswipe={swipe} />
+        <TaskRow {task} {animate} ontoggle={toggle} onswipe={swipe} onopen={open} />
       {/each}
     </ul>
   {:else}
@@ -124,11 +129,34 @@
   {/if}
 </section>
 
-{#if groups.done.length}
-  <section class="group done-group">
+{#if groups.upcoming.length}
+  <section class="group fold-group">
     <button
       type="button"
-      class="done-toggle"
+      class="fold-toggle"
+      aria-expanded={showUpcoming}
+      aria-controls="upcoming-list"
+      onclick={() => (showUpcoming = !showUpcoming)}
+    >
+      <span>Запланировано</span>
+      <span class="count">{groups.upcoming.length}</span>
+      <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+    </button>
+    {#if showUpcoming}
+      <ul class="list" id="upcoming-list" transition:slide={{ duration: 220 }}>
+        {#each groups.upcoming as task (task.id)}
+          <TaskRow {task} {animate} ontoggle={toggle} onswipe={swipe} onopen={open} />
+        {/each}
+      </ul>
+    {/if}
+  </section>
+{/if}
+
+{#if groups.done.length}
+  <section class="group fold-group">
+    <button
+      type="button"
+      class="fold-toggle"
       aria-expanded={showDone}
       aria-controls="done-list"
       onclick={() => (showDone = !showDone)}
@@ -140,7 +168,7 @@
     {#if showDone}
       <ul class="list" id="done-list" transition:slide={{ duration: 220 }}>
         {#each groups.done as task (task.id)}
-          <TaskRow {task} {animate} swipeable={false} restorable ontoggle={toggle} />
+          <TaskRow {task} {animate} swipeable={false} restorable ontoggle={toggle} onopen={open} />
         {/each}
       </ul>
     {/if}
@@ -148,11 +176,11 @@
 {/if}
 
 <style>
-  .done-group {
+  .fold-group {
     padding-top: 14px;
   }
 
-  .done-toggle {
+  .fold-toggle {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -184,7 +212,7 @@
     transition: transform 0.25s;
   }
 
-  .done-toggle[aria-expanded='true'] .chev {
+  .fold-toggle[aria-expanded='true'] .chev {
     transform: rotate(90deg);
   }
 </style>

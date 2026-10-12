@@ -2,7 +2,7 @@
   import { slide } from 'svelte/transition';
   import type { Task } from './db/schema';
   import { clock } from './clock.svelte';
-  import { formatDayShort } from './dates';
+  import { formatDue } from './dates';
 
   export type SwipeDirection = 'left' | 'right';
 
@@ -13,6 +13,7 @@
     restorable = false,
     ontoggle,
     onswipe,
+    onopen,
   }: {
     task: Task;
     animate?: boolean;
@@ -22,10 +23,16 @@
     restorable?: boolean;
     ontoggle: (task: Task) => void;
     onswipe?: (task: Task, direction: SwipeDirection) => void;
+    /** Долгое нажатие — открыть карточку дела. */
+    onopen?: (task: Task) => void;
   } = $props();
 
   // На сколько пикселей нужно протянуть строку, чтобы свайп сработал.
   const THRESHOLD = 84;
+  // Сколько держать палец, чтобы открылась карточка.
+  const LONG_PRESS_MS = 450;
+  let pressTimer: ReturnType<typeof setTimeout> | undefined;
+  let longPressed = false;
 
   let row = $state<HTMLElement>();
   let offset = $state(0);
@@ -44,7 +51,9 @@
   const overdueFrom = $derived(
     task.overdueSince ?? (task.dueDate && task.dueDate < clock.today ? task.dueDate : undefined),
   );
-  const overdueLabel = $derived(overdueFrom ? formatDayShort(overdueFrom, clock.today) : '');
+  const overdueLabel = $derived(overdueFrom ? formatDue(overdueFrom, clock.today) : '');
+  // У дел на будущие дни видна дата: «завтра», «пт, 16 окт.».
+  const dueLabel = $derived(task.dueDate && task.dueDate > clock.today ? formatDue(task.dueDate, clock.today) : '');
 
   function down(event: PointerEvent) {
     if (leaving || (event.pointerType === 'mouse' && event.button !== 0)) return;
@@ -53,13 +62,23 @@
     startY = event.clientY;
     mode = '';
     pressed = true;
+    longPressed = false;
+    clearTimeout(pressTimer);
+    if (onopen) {
+      pressTimer = setTimeout(() => {
+        if (pointerId === -1 || mode) return;
+        longPressed = true;
+        pressed = false;
+        onopen(task);
+      }, LONG_PRESS_MS);
+    }
   }
 
   function move(event: PointerEvent) {
     if (event.pointerId !== pointerId) return;
     const dx = event.clientX - startX;
     const dy = event.clientY - startY;
-    if (!mode) {
+    if (!mode && !longPressed) {
       if (swipeable && !done && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) {
         mode = 'swipe';
         dragging = true;
@@ -75,6 +94,7 @@
         pressed = false;
       }
     }
+    if (mode) clearTimeout(pressTimer);
     if (mode === 'swipe') offset = dx;
   }
 
@@ -82,6 +102,13 @@
     if (event.pointerId !== pointerId) return;
     pointerId = -1;
     pressed = false;
+    clearTimeout(pressTimer);
+    if (longPressed) {
+      // Палец отпустили после долгого нажатия — карточка уже открыта, отметку не ставим.
+      longPressed = false;
+      mode = '';
+      return;
+    }
     if (mode === 'swipe') {
       dragging = false;
       if (armed && onswipe) {
@@ -100,11 +127,19 @@
   }
 
   function cancel() {
+    clearTimeout(pressTimer);
     pointerId = -1;
     pressed = false;
     dragging = false;
     mode = '';
     if (!leaving) offset = 0;
+  }
+
+  // Правая кнопка мыши (на компьютере) тоже открывает карточку.
+  function contextMenu(event: MouseEvent) {
+    if (!onopen) return;
+    event.preventDefault();
+    if (!longPressed) onopen(task);
   }
 
   function key(event: KeyboardEvent) {
@@ -143,6 +178,7 @@
     onpointermove={move}
     onpointerup={up}
     onpointercancel={cancel}
+    oncontextmenu={contextMenu}
     onkeydown={key}
   >
     <span class="chk" aria-hidden="true">
@@ -154,10 +190,14 @@
     </span>
     <span class="body">
       <span class="txt"><span class="strike">{task.title}</span></span>
-      {#if overdueLabel || task.dueTime}
+      {#if overdueLabel || dueLabel || task.dueTime || task.notes}
         <span class="meta">
           {#if overdueLabel}<span class="overdue">{overdueLabel}</span>{/if}
+          {#if dueLabel}<span>{dueLabel}</span>{/if}
           {#if task.dueTime}<span>{task.dueTime}</span>{/if}
+          {#if task.notes}
+            <svg class="note-ic" viewBox="0 0 24 24" aria-label="Есть заметка"><path d="M5 6h14M5 11h14M5 16h9" /></svg>
+          {/if}
         </span>
       {/if}
     </span>
@@ -379,6 +419,15 @@
 
   .overdue {
     color: var(--overdue);
+  }
+
+  .note-ic {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
   }
 
   .restore {

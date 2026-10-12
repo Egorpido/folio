@@ -1,13 +1,37 @@
 <script lang="ts">
-  import { createTask } from './db/repo';
+  import { SvelteSet } from 'svelte/reactivity';
+  import { createTask, deleteTask } from './db/repo';
   import { ui } from './ui.svelte';
+  import { clock } from './clock.svelte';
+  import { showToast } from './toasts.svelte';
+  import { parseTask, type TokenKind } from './parse';
+  import { capitalize, formatDue } from './dates';
+  import { priorityName } from './priority';
 
   // Черновик сохраняется на каждую букву: если приложение обновится в фоне, текст не пропадёт.
   const DRAFT_KEY = 'folio:draft';
 
-  let input = $state<HTMLInputElement>();
   let text = $state(readDraft());
   let error = $state('');
+
+  // Что пользователь попросил считать обычным текстом (нажал на подсказку).
+  const ignored = new SvelteSet<TokenKind>();
+  const parsed = $derived(parseTask(text, clock.today, ignored));
+  // Всё, что можно распознать, — чтобы подсказку можно было и выключить, и включить обратно.
+  const detected = $derived(parseTask(text, clock.today));
+
+  const hints = $derived(
+    [...new Set(detected.found.map((t) => t.kind))].map((kind) => ({
+      kind,
+      active: !ignored.has(kind),
+      label:
+        kind === 'date'
+          ? capitalize(formatDue(detected.dueDate ?? clock.today, clock.today))
+          : kind === 'time'
+            ? (detected.dueTime ?? '')
+            : priorityName(detected.priority),
+    })),
+  );
 
   function readDraft(): string {
     try {
@@ -26,67 +50,74 @@
     }
   }
 
-  /**
-   * iPhone при фокусе сдвигает весь экран к полю ввода, и это даёт рывок.
-   * Приём из библиотеки React Aria (Adobe): на мгновение уводим поле далеко вверх —
-   * iPhone считает его видимым и экран не двигает. Над клавиатурой поле ставит сама оболочка.
-   */
-  function hideFromAutoScroll(el: HTMLInputElement): void {
-    el.style.transform = 'translateY(-2000px)';
-    requestAnimationFrame(() => {
-      el.style.transform = '';
-    });
-  }
-
-  $effect(() => {
-    const el = input;
-    if (!el) return;
-    // Касание по ещё не активному полю: фокусируем его сами, уже с приёмом против сдвига.
-    const onTouchEnd = (event: TouchEvent) => {
-      if (document.activeElement === el) return;
-      event.preventDefault();
-      hideFromAutoScroll(el);
-      el.focus();
-    };
-    el.addEventListener('touchend', onTouchEnd, { passive: false });
-    return () => el.removeEventListener('touchend', onTouchEnd);
-  });
-
-  function onFocus() {
-    ui.composing = true;
-    // Фокус пришёл не от касания (например, с клавиатуры) — тот же приём.
-    if (input && !input.style.transform) hideFromAutoScroll(input);
+  function toggleHint(kind: TokenKind) {
+    if (ignored.has(kind)) ignored.delete(kind);
+    else ignored.add(kind);
   }
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
-    const title = text.trim();
-    if (!title) return;
+    const raw = text.trim();
+    if (!raw) return;
+    const { title, dueDate, dueTime, priority } = parsed;
     // Поле очищается сразу, клавиатура остаётся открытой — можно писать следующее дело.
     text = '';
     saveDraft('');
+    ignored.clear();
     error = '';
     try {
-      const task = await createTask({ title });
-      ui.lastAddedId = task.id;
+      const task = await createTask({ title, dueDate, dueTime, priority });
+      if (dueDate && dueDate > clock.today) {
+        // Дела на будущие дни не видны в «Сегодня» — сообщаем, куда дело ушло.
+        const when = formatDue(dueDate, clock.today) + (dueTime ? `, ${dueTime}` : '');
+        showToast(`Запланировано на ${when}`, () => deleteTask(task.id));
+      } else {
+        ui.lastAddedId = task.id;
+      }
     } catch {
-      text = title;
-      saveDraft(title);
+      text = raw;
+      saveDraft(raw);
       error = 'Не сохранилось. Попробуйте ещё раз.';
     }
   }
 </script>
 
 <form class="bar" onsubmit={submit}>
+  {#if hints.length}
+    <div class="hints" aria-label="Распознано в тексте">
+      {#each hints as hint (hint.kind)}
+        <!-- Нажатие: считать это слово обычным текстом (или вернуть распознавание). -->
+        <button
+          type="button"
+          class="hint"
+          class:off={!hint.active}
+          data-kind={hint.kind}
+          data-pr={hint.kind === 'priority' ? detected.priority : undefined}
+          aria-pressed={hint.active}
+          onpointerdown={(e) => e.preventDefault()}
+          onclick={() => toggleHint(hint.kind)}
+        >
+          {#if hint.kind === 'date'}
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" /><path d="M4 10h16M9 3v4M15 3v4" /></svg>
+          {:else if hint.kind === 'time'}
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 1.5" /></svg>
+          {:else}
+            <i class="dot" aria-hidden="true"></i>
+          {/if}
+          {hint.label}
+        </button>
+      {/each}
+    </div>
+  {/if}
   <div class="field">
     <input
-      bind:this={input}
       bind:value={text}
       oninput={() => {
         saveDraft(text);
         error = '';
+        if (!text.trim()) ignored.clear();
       }}
-      onfocus={onFocus}
+      onfocus={() => (ui.composing = true)}
       onblur={() => (ui.composing = false)}
       type="text"
       name="title"
@@ -118,6 +149,64 @@
   .bar {
     padding: 8px 12px 10px;
     background: var(--bg);
+  }
+
+  .hints {
+    max-width: 536px;
+    margin: 0 auto 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-inline: 4px;
+  }
+
+  .hint {
+    --pc: var(--fg-3);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 11px;
+    border-radius: 14px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font: 500 13px/1 var(--font-ui);
+    transition: background-color 0.15s, color 0.15s;
+  }
+
+  .hint.off {
+    background: var(--sunk);
+    color: var(--fg-3);
+    text-decoration: line-through;
+  }
+
+  .hint svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .hint[data-pr='1'] {
+    --pc: var(--p1);
+  }
+
+  .hint[data-pr='2'] {
+    --pc: var(--p2);
+  }
+
+  .hint[data-pr='3'] {
+    --pc: var(--p3);
+  }
+
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--pc);
   }
 
   .field {

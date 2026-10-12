@@ -35,7 +35,15 @@ describe('раскладка дел на экране «Сегодня»', () =>
       [doneToday, doneYesterday, task('Удалено', { deletedAt: 1 }), task('Подзадача', { parentId: 'x' })],
       TODAY,
     );
-    expect(groups).toEqual({ overdue: [], today: [], inbox: [], done: [doneToday] });
+    expect(groups).toEqual({ overdue: [], today: [], inbox: [], upcoming: [], done: [doneToday] });
+  });
+
+  it('дела на будущие дни — в «Запланировано», по дате и времени', () => {
+    const later = task('Врач', { dueDate: '2026-10-20' });
+    const tomorrowEvening = task('Ужин', { dueDate: '2026-10-11', dueTime: '19:00' });
+    const tomorrowMorning = task('Зарядка', { dueDate: '2026-10-11', dueTime: '08:00' });
+    const groups = groupForToday([later, tomorrowEvening, tomorrowMorning], TODAY);
+    expect(groups.upcoming.map((t) => t.title)).toEqual(['Зарядка', 'Ужин', 'Врач']);
   });
 
   it('только что выполненное дело пару секунд остаётся на своём месте', () => {

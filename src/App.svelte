@@ -3,6 +3,7 @@
   import Composer from './lib/Composer.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
   import Toast from './lib/Toast.svelte';
+  import TaskSheet from './lib/TaskSheet.svelte';
   import StorageError from './lib/StorageError.svelte';
   import TodayScreen from './screens/TodayScreen.svelte';
   import ProjectsScreen from './screens/ProjectsScreen.svelte';
@@ -105,6 +106,12 @@
         <TabBar current={tab} onselect={select} />
       </div>
     </div>
+
+    {#if ui.editingId}
+      {#key ui.editingId}
+        <TaskSheet id={ui.editingId} />
+      {/key}
+    {/if}
   {/if}
 </div>
 
