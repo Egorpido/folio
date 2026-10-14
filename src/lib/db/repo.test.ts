@@ -5,6 +5,8 @@ import {
   completeTask,
   createTask,
   deleteTask,
+  importTasks,
+  restoreSnapshot,
   restoreTask,
   rolloverOverdue,
   uncompleteTask,
@@ -90,6 +92,36 @@ describe('хранилище дел', () => {
     // На следующий день дело переезжает снова, а дата начала просрочки остаётся первой.
     expect(await rolloverOverdue('2026-10-13')).toBe(1);
     expect(await db.tasks.get(late.id)).toMatchObject({ dueDate: '2026-10-13', overdueSince: '2026-10-10' });
+  });
+
+  it('восстанавливает из копии слиянием: добавляет новое, обновляет только более свежее', async () => {
+    const mine = await createTask({ title: 'Моё дело' });
+    const fileCopy = { ...mine, title: 'Старое название', updatedAt: mine.updatedAt - 1000 };
+    const fromFile = { ...mine, id: 'из-файла', title: 'Дело из файла' };
+    const result = await importTasks([fileCopy, fromFile], 'merge');
+    expect(result).toMatchObject({ added: 1, updated: 0, removed: 0 });
+    expect((await db.tasks.get(mine.id))?.title).toBe('Моё дело');
+    expect((await db.tasks.get('из-файла'))?.title).toBe('Дело из файла');
+  });
+
+  it('восстанавливает с заменой: лишние дела мягко удаляются, и всё можно отменить', async () => {
+    const keep = await createTask({ title: 'Останется' });
+    const extra = await createTask({ title: 'Лишнее' });
+    const changedInFile = { ...keep, title: 'Из файла' };
+    const result = await importTasks([changedInFile], 'replace');
+    expect(result).toMatchObject({ added: 0, updated: 1, removed: 1 });
+    expect((await db.tasks.get(keep.id))?.title).toBe('Из файла');
+    expect((await db.tasks.get(extra.id))?.deletedAt).toBeTypeOf('number');
+
+    await restoreSnapshot(result.snapshot);
+    expect((await db.tasks.get(keep.id))?.title).toBe('Останется');
+    expect((await db.tasks.get(extra.id))?.deletedAt).toBeUndefined();
+  });
+
+  it('отмена восстановления убирает дела, которых до него не было', async () => {
+    const result = await importTasks([{ ...(await createTask({ title: 'x' })), id: 'новое' }], 'merge');
+    await restoreSnapshot(result.snapshot);
+    expect(await db.tasks.get('новое')).toBeUndefined();
   });
 
   it('не трогает несуществующее дело', async () => {

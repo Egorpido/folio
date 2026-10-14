@@ -5,6 +5,7 @@
  */
 import { db } from './db';
 import type { Change, SyncFields, SyncedTable, Task } from './schema';
+import { pickNewer } from '../backup';
 
 /** Изменяемые поля записи. Значение undefined означает «убрать поле». */
 export type Patch<T> = { [K in keyof Omit<T, keyof SyncFields>]?: T[K] | undefined };
@@ -74,6 +75,59 @@ export async function rolloverOverdue(today: string): Promise<number> {
       await logChange('tasks', task.id, 'put', at);
     }
     return stale.length;
+  });
+}
+
+export interface ImportResult {
+  added: number;
+  updated: number;
+  removed: number;
+  /** Все дела до восстановления — чтобы его можно было отменить. */
+  snapshot: Task[];
+}
+
+/**
+ * Восстановление из копии.
+ * «merge» — добавить новые дела и обновить те, что в файле свежее; ничего не теряется.
+ * «replace» — сделать дела точно как в файле; дела, которых в файле нет, мягко удаляются.
+ */
+export async function importTasks(incoming: readonly Task[], mode: 'merge' | 'replace'): Promise<ImportResult> {
+  const at = Date.now();
+  return db.transaction('rw', db.tasks, db.changes, async () => {
+    const snapshot = await db.tasks.toArray();
+    const local = new Map(snapshot.map((t) => [t.id, t]));
+    const fromFile = mode === 'merge' ? pickNewer(local, incoming) : [...incoming];
+    const removals: Task[] = [];
+    if (mode === 'replace') {
+      const inFile = new Set(incoming.map((t) => t.id));
+      for (const task of snapshot) {
+        if (!inFile.has(task.id) && !task.deletedAt) {
+          removals.push({ ...task, deletedAt: at, updatedAt: at, rev: task.rev + 1 });
+        }
+      }
+    }
+    const toPut = [...fromFile, ...removals];
+    await db.tasks.bulkPut(toPut);
+    await db.changes.bulkAdd(
+      toPut.map((t) => ({ table: 'tasks' as const, id: t.id, op: t.deletedAt ? ('delete' as const) : ('put' as const), at })),
+    );
+    const added = fromFile.filter((t) => !local.has(t.id)).length;
+    return { added, updated: fromFile.length - added, removed: removals.length, snapshot };
+  });
+}
+
+/** Возвращает дела точно к состоянию до восстановления (отмена на плашке). */
+export async function restoreSnapshot(snapshot: readonly Task[]): Promise<void> {
+  const at = Date.now();
+  await db.transaction('rw', db.tasks, db.changes, async () => {
+    const keep = new Set(snapshot.map((t) => t.id));
+    const extra = (await db.tasks.toArray()).filter((t) => !keep.has(t.id)).map((t) => t.id);
+    await db.tasks.bulkDelete(extra);
+    await db.tasks.bulkPut([...snapshot]);
+    await db.changes.bulkAdd([
+      ...snapshot.map((t) => ({ table: 'tasks' as const, id: t.id, op: 'put' as const, at })),
+      ...extra.map((id) => ({ table: 'tasks' as const, id, op: 'delete' as const, at })),
+    ]);
   });
 }
 

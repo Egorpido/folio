@@ -15,11 +15,17 @@
   import { viewport } from './lib/viewport.svelte';
   import { clock } from './lib/clock.svelte';
   import { rolloverOverdue } from './lib/db/repo';
+  import { startBackupWatch } from './lib/backup.svelte';
   import type { Tab } from './lib/types';
 
   // Несделанные дела с прошедших дней переезжают на сегодня — при запуске и в полночь.
   $effect(() => {
     if (storage.ready) void rolloverOverdue(clock.today);
+  });
+
+  // Следим за делами для резервной копии и напоминания о ней.
+  $effect(() => {
+    if (storage.ready) void startBackupWatch();
   });
 
   let tab = $state<Tab>('today');

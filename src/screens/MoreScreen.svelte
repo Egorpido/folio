@@ -1,5 +1,6 @@
 <script lang="ts">
   import ScreenHeader from '../lib/ScreenHeader.svelte';
+  import BackupPanel from '../lib/BackupPanel.svelte';
   import { theme, setTheme, type ThemeChoice } from '../lib/theme.svelte';
   import { pwa } from '../lib/pwa.svelte';
   import { storage } from '../lib/storage.svelte';
@@ -34,6 +35,8 @@
   </div>
 </section>
 
+<BackupPanel />
+
 <section class="group" aria-labelledby="g-data">
   <h2 class="group-label" id="g-data">Данные</h2>
   <dl class="rows">
@@ -61,7 +64,7 @@
     {:else if storage.persisted === false}
       iPhone может стереть их при нехватке места, поэтому резервные копии особенно важны.
     {/if}
-    Если удалить Folio с экрана «Домой», дела удалятся вместе с ним. Резервные копии в файл появятся на шаге 7.
+    Если удалить Folio с экрана «Домой», дела удалятся вместе с ним — от этого спасает резервная копия выше.
   </p>
 </section>
 

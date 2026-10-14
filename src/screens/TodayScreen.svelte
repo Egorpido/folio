@@ -3,6 +3,7 @@
   import { SvelteSet } from 'svelte/reactivity';
   import ScreenHeader from '../lib/ScreenHeader.svelte';
   import InstallHint from '../lib/InstallHint.svelte';
+  import BackupReminder from '../lib/BackupReminder.svelte';
   import TaskRow, { type SwipeDirection } from '../lib/TaskRow.svelte';
   import { clock } from '../lib/clock.svelte';
   import { ui } from '../lib/ui.svelte';
@@ -89,6 +90,7 @@
 
 <ScreenHeader title="Сегодня" subtitle={formatDayLong(clock.today)} />
 <InstallHint />
+<BackupReminder />
 
 {#if groups.overdue.length}
   <section class="group" aria-labelledby="g-overdue">
