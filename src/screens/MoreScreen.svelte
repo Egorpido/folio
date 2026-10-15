@@ -1,6 +1,7 @@
 <script lang="ts">
   import ScreenHeader from '../lib/ScreenHeader.svelte';
   import BackupPanel from '../lib/BackupPanel.svelte';
+  import AiSettings from '../lib/ai/AiSettings.svelte';
   import { theme, setTheme, type ThemeChoice } from '../lib/theme.svelte';
   import { pwa } from '../lib/pwa.svelte';
   import { storage } from '../lib/storage.svelte';
@@ -36,6 +37,8 @@
 </section>
 
 <BackupPanel />
+
+<AiSettings />
 
 <section class="group" aria-labelledby="g-data">
   <h2 class="group-label" id="g-data">Данные</h2>

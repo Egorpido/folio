@@ -7,6 +7,7 @@
   import { parseTask, type TokenKind } from './parse';
   import { capitalize, formatDue } from './dates';
   import { priorityName } from './priority';
+  import { ai, extractTasks, isAiReady } from './ai/ai.svelte';
 
   // Черновик сохраняется на каждую букву: если приложение обновится в фоне, текст не пропадёт.
   const DRAFT_KEY = 'folio:draft';
@@ -53,6 +54,37 @@
   function toggleHint(kind: TokenKind) {
     if (ignored.has(kind)) ignored.delete(kind);
     else ignored.add(kind);
+  }
+
+  // После «Добавить всё» в окне проверки текст, отданный ИИ, больше не нужен.
+  let lastAdded = ai.added;
+  $effect(() => {
+    if (ai.added === lastAdded) return;
+    lastAdded = ai.added;
+    text = '';
+    saveDraft('');
+    ignored.clear();
+  });
+
+  /** ✨: отдать весь текст ИИ, чтобы он разложил его на отдельные дела. */
+  async function askAi() {
+    const raw = text.trim();
+    if (!raw || ai.busy) return;
+    if (!isAiReady()) {
+      showToast('Подключите ИИ: «Ещё» → «ИИ-ввод»');
+      return;
+    }
+    ai.busy = true;
+    error = '';
+    try {
+      const drafts = await extractTasks(raw, clock.today);
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      ai.drafts = drafts;
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Не получилось разобрать текст.';
+    } finally {
+      ai.busy = false;
+    }
   }
 
   async function submit(event: SubmitEvent) {
@@ -124,9 +156,20 @@
       placeholder="Новое дело…"
       enterkeyhint="enter"
       autocomplete="off"
-      maxlength="500"
+      maxlength="2000"
       aria-label="Новое дело"
     />
+    <button
+      type="button"
+      class="ai"
+      class:busy={ai.busy}
+      disabled={!text.trim() || ai.busy}
+      aria-label="Разобрать текст с помощью ИИ"
+      onpointerdown={(e) => e.preventDefault()}
+      onclick={askAi}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3.5l1.7 4.8 4.8 1.7-4.8 1.7L11 16.5l-1.7-4.8L4.5 10l4.8-1.7z" /><path d="M18 14.5l.75 2 2 .75-2 .75-.75 2-.75-2-2-.75 2-.75z" /></svg>
+    </button>
     <!-- preventDefault на нажатии: кнопка не забирает фокус, и клавиатура не прячется. -->
     <button
       type="submit"
@@ -251,6 +294,40 @@
     background: var(--accent);
     color: var(--on-accent);
     transition: opacity 0.2s;
+  }
+
+  .ai {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    color: var(--gilt);
+    transition: opacity 0.2s;
+  }
+
+  .ai svg {
+    width: 21px;
+    height: 21px;
+    fill: currentColor;
+  }
+
+  .ai:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  .ai.busy {
+    opacity: 1;
+    animation: shimmer 1s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    50% {
+      opacity: 0.35;
+      transform: scale(0.88);
+    }
   }
 
   .send:disabled {

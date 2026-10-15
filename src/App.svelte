@@ -4,6 +4,8 @@
   import UpdateBanner from './lib/UpdateBanner.svelte';
   import Toast from './lib/Toast.svelte';
   import TaskSheet from './lib/TaskSheet.svelte';
+  import AiReview from './lib/ai/AiReview.svelte';
+  import { ai } from './lib/ai/ai.svelte';
   import StorageError from './lib/StorageError.svelte';
   import TodayScreen from './screens/TodayScreen.svelte';
   import ProjectsScreen from './screens/ProjectsScreen.svelte';
@@ -117,6 +119,10 @@
       {#key ui.editingId}
         <TaskSheet id={ui.editingId} />
       {/key}
+    {/if}
+
+    {#if ai.drafts}
+      <AiReview />
     {/if}
   {/if}
 </div>
