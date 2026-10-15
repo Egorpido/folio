@@ -75,6 +75,9 @@ document.addEventListener('focusout', () => {
   }
 });
 
+// iOS включает :active (отклик кнопок на касание), только если на странице слушают touchstart.
+document.addEventListener('touchstart', () => {}, { passive: true });
+
 // С открытой клавиатурой iPhone позволяет таскать пальцем весь экран. Разрешаем движение
 // только внутри прокручиваемых областей (список, карточка дела), и только если им есть куда прокручиваться.
 document.addEventListener(

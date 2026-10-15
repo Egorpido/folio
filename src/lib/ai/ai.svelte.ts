@@ -78,7 +78,18 @@ export async function extractTasks(text: string, today: string): Promise<AiTask[
   } finally {
     clearTimeout(timer);
   }
-  if (!response.ok) throw new Error(describeHttpError(response.status));
+  if (!response.ok) {
+    // К понятному объяснению добавляем ответ самого сервиса — по нему видно точную причину.
+    let detail = '';
+    try {
+      const body = (await response.json()) as { error?: { message?: string } | string; message?: string };
+      detail = (typeof body.error === 'string' ? body.error : body.error?.message) ?? body.message ?? '';
+    } catch {
+      // Ответ не JSON — обойдёмся без подробностей.
+    }
+    console.error('ИИ-сервис ответил ошибкой', response.status, detail);
+    throw new Error(describeHttpError(response.status) + (detail ? ` Ответ сервиса: «${detail.slice(0, 200)}».` : ''));
+  }
 
   try {
     const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };

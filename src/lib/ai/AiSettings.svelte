@@ -51,7 +51,7 @@
           value={ai.settings.baseUrl}
           autocapitalize="off"
           autocomplete="off"
-          onchange={(e) => saveSettings({ baseUrl: e.currentTarget.value.trim() })}
+          oninput={(e) => saveSettings({ baseUrl: e.currentTarget.value.trim() })}
         />
       </label>
     {/if}
@@ -66,7 +66,7 @@
           autocapitalize="off"
           autocomplete="off"
           spellcheck="false"
-          onchange={(e) => saveSettings({ key: e.currentTarget.value.trim() })}
+          oninput={(e) => saveSettings({ key: e.currentTarget.value.trim() })}
         />
         <button type="button" class="eye" onclick={() => (showKey = !showKey)}>{showKey ? 'Скрыть' : 'Показать'}</button>
       </div>
@@ -100,7 +100,7 @@
           value={ai.settings.model}
           autocapitalize="off"
           autocomplete="off"
-          onchange={(e) => saveSettings({ model: e.currentTarget.value.trim() })}
+          oninput={(e) => saveSettings({ model: e.currentTarget.value.trim() })}
         />
       </label>
     {/if}
