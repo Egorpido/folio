@@ -91,7 +91,9 @@
     event.preventDefault();
     const raw = text.trim();
     if (!raw) return;
-    const { title, dueDate, dueTime, priority } = parsed;
+    const { title, dueTime, priority } = parsed;
+    // Дело без даты сразу ставится на сегодня (решение владельца от 15.10.2026).
+    const dueDate = parsed.dueDate ?? clock.today;
     // Поле очищается сразу, клавиатура остаётся открытой — можно писать следующее дело.
     text = '';
     saveDraft('');

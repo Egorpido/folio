@@ -24,7 +24,8 @@
       const task: AiTask = { ...item, title: item.title.trim() };
       const created = await createTask({
         title: task.title,
-        dueDate: task.dueDate,
+        // Дело без даты сразу ставится на сегодня.
+        dueDate: task.dueDate ?? clock.today,
         dueTime: task.dueTime,
         priority: task.priority,
         notes: task.notes,
@@ -64,14 +65,13 @@
         </button>
         <div class="body">
           <input class="title" bind:value={item.title} aria-label="Текст дела" maxlength="500" />
-          {#if item.dueDate || item.dueTime || item.priority || item.notes}
-            <p class="meta">
-              {#if item.dueDate}<span>{capitalize(formatDue(item.dueDate, clock.today))}</span>{/if}
+          <p class="meta">
+              <!-- Без даты дело встанет на сегодня — так и показываем. -->
+              <span>{capitalize(formatDue(item.dueDate ?? clock.today, clock.today))}</span>
               {#if item.dueTime}<span>{item.dueTime}</span>{/if}
               {#if item.priority}<span class="pr" data-pr={item.priority}>{priorityName(item.priority)}</span>{/if}
               {#if item.notes}<span class="notes">{item.notes}</span>{/if}
-            </p>
-          {/if}
+          </p>
         </div>
       </li>
     {/each}
