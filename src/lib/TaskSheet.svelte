@@ -2,7 +2,7 @@
   import { fade, fly } from 'svelte/transition';
   import { liveQuery } from 'dexie';
   import { db } from './db/db';
-  import { deleteTask, restoreTask, updateTask, type Patch } from './db/repo';
+  import { completeTask, createTask, deleteTask, restoreTask, uncompleteTask, updateTask, type Patch } from './db/repo';
   import type { Priority, Task } from './db/schema';
   import { clock } from './clock.svelte';
   import { ui } from './ui.svelte';
@@ -11,12 +11,45 @@
   import { addDays, capitalize, formatDue, nextMonday, weekendStart } from './dates';
   import { PRIORITIES } from './priority';
 
-  let { id }: { id: string } = $props();
+  let props: { id: string } = $props();
+  // Номер дела запоминаем один раз: при закрытии карточки props.id сразу становится пустым,
+  // и действия, завершающиеся после закрытия (удаление, сохранение), промахнулись бы.
+  // svelte-ignore state_referenced_locally
+  const id = props.id;
 
   // Карточка открывается заново для каждого дела ({#key} в App.svelte), поэтому id не меняется.
   // svelte-ignore state_referenced_locally
   const taskStore = liveQuery(() => db.tasks.get(id));
   const task = $derived($taskStore);
+
+  // Подзадачи этого дела.
+  // svelte-ignore state_referenced_locally
+  const childrenStore = liveQuery(() =>
+    db.tasks.where('parentId').equals(id).filter((t) => !t.deletedAt).sortBy('order'),
+  );
+  const children = $derived($childrenStore ?? []);
+  let newSub = $state('');
+
+  async function addSub(event: SubmitEvent) {
+    event.preventDefault();
+    const text = newSub.trim();
+    if (!text) return;
+    newSub = '';
+    await createTask({ title: text, parentId: id });
+  }
+
+  function toggleSub(sub: Task) {
+    void (sub.completedAt ? uncompleteTask(sub.id) : completeTask(sub.id));
+  }
+
+  function renameSub(sub: Task, value: string) {
+    const text = value.trim();
+    if (text && text !== sub.title) void updateTask(sub.id, { title: text });
+  }
+
+  function setDeadline(value: string | undefined) {
+    save({ deadline: value });
+  }
 
   let title = $state('');
   let notes = $state('');
@@ -181,6 +214,41 @@
       ></textarea>
 
       <section>
+        <h3 class="label">Подзадачи{children.length ? ` · ${children.filter((c) => c.completedAt).length} из ${children.length}` : ''}</h3>
+        {#if children.length}
+          <ul class="subs">
+            {#each children as sub (sub.id)}
+              <li class:done={!!sub.completedAt}>
+                <button
+                  type="button"
+                  class="sub-check"
+                  role="checkbox"
+                  aria-checked={!!sub.completedAt}
+                  aria-label={sub.completedAt ? 'Снять отметку' : 'Отметить выполненной'}
+                  onclick={() => toggleSub(sub)}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 12.4l3.1 3.1 6-6.6" /></svg>
+                </button>
+                <input
+                  class="sub-title"
+                  value={sub.title}
+                  aria-label="Текст подзадачи"
+                  maxlength="300"
+                  onchange={(e) => renameSub(sub, e.currentTarget.value)}
+                />
+                <button type="button" class="sub-remove" aria-label="Удалить подзадачу" onclick={() => deleteTask(sub.id)}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" /></svg>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+        <form class="sub-add" onsubmit={addSub}>
+          <input bind:value={newSub} placeholder="Добавить подзадачу…" enterkeyhint="enter" maxlength="300" aria-label="Новая подзадача" />
+        </form>
+      </section>
+
+      <section>
         <h3 class="label">Когда</h3>
         <div class="chips">
           {#each quickDates as option (option.label)}
@@ -221,6 +289,25 @@
           </label>
           {#if task.dueTime}
             <button type="button" class="chip" onclick={() => setTime('')}>Без времени</button>
+          {/if}
+        </div>
+      </section>
+
+      <section>
+        <h3 class="label">Крайний срок</h3>
+        <div class="chips">
+          <label class="chip pick" aria-pressed={!!task.deadline}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V4M6 4h11l-2 4 2 4H6" /></svg>
+            {task.deadline ? `До ${formatDue(task.deadline, clock.today)}` : 'Указать срок'}
+            <input
+              type="date"
+              value={task.deadline ?? ''}
+              aria-label="Выбрать крайний срок"
+              onchange={(e) => setDeadline(e.currentTarget.value || undefined)}
+            />
+          </label>
+          {#if task.deadline}
+            <button type="button" class="chip" onclick={() => setDeadline(undefined)}>Без срока</button>
           {/if}
         </div>
       </section>
@@ -390,6 +477,89 @@
     opacity: 0;
     border: 0;
     cursor: pointer;
+  }
+
+  .subs {
+    margin: 0 0 4px;
+    padding: 0;
+    list-style: none;
+  }
+
+  .subs li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .sub-check {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1.6px solid var(--fg-3);
+    color: transparent;
+  }
+
+  .subs li.done .sub-check {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+  }
+
+  .sub-check svg,
+  .sub-remove svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .sub-title {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--fg);
+    font: 400 16px/1.3 var(--font-ui);
+  }
+
+  .subs li.done .sub-title {
+    color: var(--fg-3);
+    text-decoration: line-through;
+    text-decoration-color: var(--gilt);
+  }
+
+  .sub-remove {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    color: var(--fg-3);
+  }
+
+  .sub-add input {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 2px;
+    border: 0;
+    border-bottom: 1px dashed var(--line);
+    outline: none;
+    background: transparent;
+    color: var(--fg);
+    font: 400 16px/1.3 var(--font-ui);
+  }
+
+  .sub-add input:focus {
+    border-bottom-color: var(--accent);
   }
 
   .priorities {

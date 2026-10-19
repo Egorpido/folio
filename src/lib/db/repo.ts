@@ -131,23 +131,33 @@ export async function restoreSnapshot(snapshot: readonly Task[]): Promise<void> 
   });
 }
 
-/** Мягкое удаление: запись остаётся с отметкой deletedAt, поэтому удаление можно отменить. */
+/**
+ * Мягкое удаление: запись остаётся с отметкой deletedAt, поэтому удаление можно отменить.
+ * Подзадачи удаляются вместе с делом и с той же отметкой — так их можно вернуть вместе.
+ */
 export async function deleteTask(id: string): Promise<void> {
   const at = Date.now();
   await db.transaction('rw', db.tasks, db.changes, async () => {
     const current = await db.tasks.get(id);
     if (!current || current.deletedAt) return;
-    await db.tasks.put({ ...current, deletedAt: at, updatedAt: at, rev: current.rev + 1 });
-    await logChange('tasks', id, 'delete', at);
+    const children = await db.tasks.where('parentId').equals(id).filter((t) => !t.deletedAt).toArray();
+    for (const task of [current, ...children]) {
+      await db.tasks.put({ ...task, deletedAt: at, updatedAt: at, rev: task.rev + 1 });
+      await logChange('tasks', task.id, 'delete', at);
+    }
   });
 }
 
+/** Возвращает удалённое дело и подзадачи, удалённые вместе с ним. */
 export async function restoreTask(id: string): Promise<void> {
   const at = Date.now();
   await db.transaction('rw', db.tasks, db.changes, async () => {
     const current = await db.tasks.get(id);
     if (!current?.deletedAt) return;
-    await db.tasks.put(applyPatch(current, { deletedAt: undefined, updatedAt: at, rev: current.rev + 1 }));
-    await logChange('tasks', id, 'put', at);
+    const children = await db.tasks.where('parentId').equals(id).filter((t) => t.deletedAt === current.deletedAt).toArray();
+    for (const task of [current, ...children]) {
+      await db.tasks.put(applyPatch(task, { deletedAt: undefined, updatedAt: at, rev: task.rev + 1 }));
+      await logChange('tasks', task.id, 'put', at);
+    }
   });
 }

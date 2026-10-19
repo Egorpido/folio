@@ -22,6 +22,18 @@
   const lingering = new SvelteSet<string>();
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   const groups = $derived(groupForToday($tasks ?? [], clock.today, lingering));
+  // Подзадачи по делам: сколько сделано из скольких.
+  const subtaskCounts = $derived.by(() => {
+    const counts = new Map<string, { done: number; total: number }>();
+    for (const t of $tasks ?? []) {
+      if (!t.parentId || t.deletedAt) continue;
+      const c = counts.get(t.parentId) ?? { done: 0, total: 0 };
+      c.total += 1;
+      if (t.completedAt) c.done += 1;
+      counts.set(t.parentId, c);
+    }
+    return counts;
+  });
   let showDone = $state(false);
   let showUpcoming = $state(false);
 
@@ -97,7 +109,7 @@
     <h2 class="group-label overdue" id="g-overdue">Просрочено</h2>
     <ul class="list">
       {#each groups.overdue as task (task.id)}
-        <TaskRow {task} {animate} ontoggle={toggle} onswipe={swipe} onopen={open} />
+        <TaskRow {task} {animate} subtasks={subtaskCounts.get(task.id)} ontoggle={toggle} onswipe={swipe} onopen={open} />
       {/each}
     </ul>
   </section>
@@ -108,7 +120,7 @@
   {#if groups.today.length}
     <ul class="list">
       {#each groups.today as task (task.id)}
-        <TaskRow {task} {animate} ontoggle={toggle} onswipe={swipe} onopen={open} />
+        <TaskRow {task} {animate} subtasks={subtaskCounts.get(task.id)} ontoggle={toggle} onswipe={swipe} onopen={open} />
       {/each}
     </ul>
   {:else if groups.done.length}
@@ -123,7 +135,7 @@
   {#if groups.inbox.length}
     <ul class="list">
       {#each groups.inbox as task (task.id)}
-        <TaskRow {task} {animate} ontoggle={toggle} onswipe={swipe} onopen={open} />
+        <TaskRow {task} {animate} subtasks={subtaskCounts.get(task.id)} ontoggle={toggle} onswipe={swipe} onopen={open} />
       {/each}
     </ul>
   {:else}
@@ -147,7 +159,7 @@
     {#if showUpcoming}
       <ul class="list" id="upcoming-list" transition:slide={{ duration: 220 }}>
         {#each groups.upcoming as task (task.id)}
-          <TaskRow {task} {animate} ontoggle={toggle} onswipe={swipe} onopen={open} />
+          <TaskRow {task} {animate} subtasks={subtaskCounts.get(task.id)} ontoggle={toggle} onswipe={swipe} onopen={open} />
         {/each}
       </ul>
     {/if}
@@ -170,7 +182,7 @@
     {#if showDone}
       <ul class="list" id="done-list" transition:slide={{ duration: 220 }}>
         {#each groups.done as task (task.id)}
-          <TaskRow {task} {animate} swipeable={false} restorable ontoggle={toggle} onopen={open} />
+          <TaskRow {task} {animate} subtasks={subtaskCounts.get(task.id)} swipeable={false} restorable ontoggle={toggle} onopen={open} />
         {/each}
       </ul>
     {/if}

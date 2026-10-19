@@ -124,6 +124,21 @@ describe('хранилище дел', () => {
     expect(await db.tasks.get('новое')).toBeUndefined();
   });
 
+  it('удаляет дело вместе с подзадачами и возвращает их вместе', async () => {
+    const parent = await createTask({ title: 'Ремонт' });
+    const child = await createTask({ title: 'Купить краску', parentId: parent.id });
+    const removedEarlier = await createTask({ title: 'Старая подзадача', parentId: parent.id });
+    await deleteTask(removedEarlier.id);
+    await new Promise((r) => setTimeout(r, 5));
+    await deleteTask(parent.id);
+    expect((await db.tasks.get(child.id))?.deletedAt).toBeTypeOf('number');
+    await restoreTask(parent.id);
+    expect((await db.tasks.get(parent.id))?.deletedAt).toBeUndefined();
+    expect((await db.tasks.get(child.id))?.deletedAt).toBeUndefined();
+    // Подзадача, удалённая раньше отдельно, не возвращается.
+    expect((await db.tasks.get(removedEarlier.id))?.deletedAt).toBeTypeOf('number');
+  });
+
   it('не трогает несуществующее дело', async () => {
     expect(await updateTask('нет-такого', { title: 'x' })).toBeUndefined();
     await deleteTask('нет-такого');

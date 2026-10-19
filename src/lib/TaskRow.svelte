@@ -14,8 +14,11 @@
     ontoggle,
     onswipe,
     onopen,
+    subtasks,
   }: {
     task: Task;
+    /** Сколько подзадач сделано из скольких — «2 из 5» под делом. */
+    subtasks?: { done: number; total: number };
     animate?: boolean;
     /** Свайп вправо — на завтра, влево — удалить. */
     swipeable?: boolean;
@@ -52,6 +55,14 @@
     task.overdueSince ?? (task.dueDate && task.dueDate < clock.today ? task.dueDate : undefined),
   );
   const overdueLabel = $derived(overdueFrom ? formatDue(overdueFrom, clock.today) : '');
+  // Крайний срок: «до пт, 23 окт.»; сегодня или прошёл — заметным цветом.
+  const deadlineLabel = $derived.by(() => {
+    if (!task.deadline) return '';
+    if (task.deadline < clock.today) return `срок был ${formatDue(task.deadline, clock.today)}`;
+    if (task.deadline === clock.today) return 'срок сегодня';
+    return `до ${formatDue(task.deadline, clock.today)}`;
+  });
+  const deadlineUrgent = $derived(!!task.deadline && task.deadline <= clock.today && !task.completedAt);
   // У дел на будущие дни видна дата: «завтра», «пт, 16 окт.».
   const dueLabel = $derived(task.dueDate && task.dueDate > clock.today ? formatDue(task.dueDate, clock.today) : '');
 
@@ -190,11 +201,18 @@
     </span>
     <span class="body">
       <span class="txt"><span class="strike">{task.title}</span></span>
-      {#if overdueLabel || dueLabel || task.dueTime || task.notes}
+      {#if overdueLabel || dueLabel || task.dueTime || task.notes || deadlineLabel || subtasks?.total}
         <span class="meta">
           {#if overdueLabel}<span class="overdue">{overdueLabel}</span>{/if}
           {#if dueLabel}<span>{dueLabel}</span>{/if}
           {#if task.dueTime}<span>{task.dueTime}</span>{/if}
+          {#if deadlineLabel}<span class:overdue={deadlineUrgent}>{deadlineLabel}</span>{/if}
+          {#if subtasks?.total}
+            <span class="subs">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.6 4.4l1.3 1.3 2.4-2.5M2.6 10.6l1.3 1.3 2.4-2.5M8.6 4.6h5M8.6 10.8h5" /></svg>
+              {subtasks.done} из {subtasks.total}
+            </span>
+          {/if}
           {#if task.notes}
             <svg class="note-ic" viewBox="0 0 24 24" aria-label="Есть заметка"><path d="M5 6h14M5 11h14M5 16h9" /></svg>
           {/if}
@@ -419,6 +437,22 @@
 
   .overdue {
     color: var(--overdue);
+  }
+
+  .subs {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .subs svg {
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .note-ic {
