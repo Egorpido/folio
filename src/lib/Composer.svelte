@@ -87,8 +87,22 @@
     }
   }
 
-  async function submit(event: SubmitEvent) {
+  // ИИ сам разбирает длинный текст по «вводу» (решение владельца 27.10.2026). Короткий — как обычно.
+  // Для текущего текста ИИ можно выключить нажатием на подсказку «✨ Разберёт ИИ».
+  let aiOff = $state(false);
+  const aiWillRun = $derived(
+    isAiReady() && ai.settings.autoMin > 0 && text.trim().length >= ai.settings.autoMin,
+  );
+
+  // «Ввод» на клавиатуре: длинный текст — ИИ, короткий — обычное добавление.
+  function submit(event: SubmitEvent) {
     event.preventDefault();
+    if (aiWillRun && !aiOff) void askAi();
+    else void addPlain();
+  }
+
+  // Кнопка ↑ и короткий текст: добавить как есть, без ИИ.
+  async function addPlain() {
     const raw = text.trim();
     if (!raw) return;
     const { title, dueTime, priority } = parsed;
@@ -98,6 +112,7 @@
     text = '';
     saveDraft('');
     ignored.clear();
+    aiOff = false;
     error = '';
     try {
       const task = await createTask({ title, dueDate, dueTime, priority });
@@ -117,8 +132,22 @@
 </script>
 
 <form class="bar" onsubmit={submit}>
-  {#if hints.length}
+  {#if hints.length || aiWillRun || ai.busy}
     <div class="hints" aria-label="Распознано в тексте">
+      {#if aiWillRun || ai.busy}
+        <button
+          type="button"
+          class="hint ai-hint"
+          class:off={aiOff && !ai.busy}
+          class:busy={ai.busy}
+          aria-pressed={!aiOff}
+          onpointerdown={(e) => e.preventDefault()}
+          onclick={() => (aiOff = !aiOff)}
+        >
+          <svg class="spark" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3.5l1.7 4.8 4.8 1.7-4.8 1.7L11 16.5l-1.7-4.8L4.5 10l4.8-1.7z" /><path d="M18 14.5l.75 2 2 .75-2 .75-.75 2-.75-2-2-.75 2-.75z" /></svg>
+          {ai.busy ? 'ИИ разбирает…' : 'Разберёт ИИ'}
+        </button>
+      {/if}
       {#each hints as hint (hint.kind)}
         <!-- Нажатие: считать это слово обычным текстом (или вернуть распознавание). -->
         <button
@@ -149,7 +178,10 @@
       oninput={() => {
         saveDraft(text);
         error = '';
-        if (!text.trim()) ignored.clear();
+        if (!text.trim()) {
+          ignored.clear();
+          aiOff = false;
+        }
       }}
       onfocus={() => (ui.composing = true)}
       onblur={() => (ui.composing = false)}
@@ -161,24 +193,14 @@
       maxlength="2000"
       aria-label="Новое дело"
     />
-    <button
-      type="button"
-      class="ai"
-      class:busy={ai.busy}
-      disabled={!text.trim() || ai.busy}
-      aria-label="Разобрать текст с помощью ИИ"
-      onpointerdown={(e) => e.preventDefault()}
-      onclick={askAi}
-    >
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3.5l1.7 4.8 4.8 1.7-4.8 1.7L11 16.5l-1.7-4.8L4.5 10l4.8-1.7z" /><path d="M18 14.5l.75 2 2 .75-2 .75-.75 2-.75-2-2-.75 2-.75z" /></svg>
-    </button>
     <!-- preventDefault на нажатии: кнопка не забирает фокус, и клавиатура не прячется. -->
     <button
-      type="submit"
+      type="button"
       class="send"
-      disabled={!text.trim()}
-      aria-label="Добавить дело"
+      disabled={!text.trim() || ai.busy}
+      aria-label="Добавить без ИИ"
       onpointerdown={(e) => e.preventDefault()}
+      onclick={addPlain}
     >
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18.5V6M6.5 11.5L12 6l5.5 5.5" /></svg>
     </button>
@@ -298,37 +320,18 @@
     transition: opacity 0.2s;
   }
 
-  .ai {
-    flex: none;
-    display: grid;
-    place-items: center;
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    color: var(--gilt);
-    transition: opacity 0.2s;
+  .ai-hint .spark {
+    fill: var(--gilt);
+    stroke: none;
   }
 
-  .ai svg {
-    width: 21px;
-    height: 21px;
-    fill: currentColor;
-  }
-
-  .ai:disabled {
-    opacity: 0.35;
-    cursor: default;
-  }
-
-  .ai.busy {
-    opacity: 1;
+  .ai-hint.busy {
     animation: shimmer 1s ease-in-out infinite;
   }
 
   @keyframes shimmer {
     50% {
-      opacity: 0.35;
-      transform: scale(0.88);
+      opacity: 0.45;
     }
   }
 

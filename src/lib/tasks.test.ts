@@ -23,6 +23,14 @@ describe('раскладка дел на экране «Сегодня»', () =>
     expect(groups.overdue).toEqual([late]);
   });
 
+  it('«Можно позже» не попадает в «Просрочено», а стоит на сегодня', () => {
+    const later = task('Разобрать балкон', { dueDate: '2026-10-08', priority: 3 });
+    const rolled = task('Купить воск', { dueDate: TODAY, overdueSince: '2026-10-08', priority: 3 });
+    const groups = groupForToday([later, rolled], TODAY);
+    expect(groups.overdue).toEqual([]);
+    expect(groups.today.map((t) => t.title)).toEqual(['Разобрать балкон', 'Купить воск']);
+  });
+
   it('перенесённое на сегодня просроченное дело остаётся в «Просрочено»', () => {
     const rolled = task('Оплатить счёт', { dueDate: TODAY, overdueSince: '2026-10-08' });
     expect(groupForToday([rolled], TODAY).overdue).toEqual([rolled]);

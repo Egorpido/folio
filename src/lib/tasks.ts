@@ -32,8 +32,10 @@ export function groupForToday(
       continue;
     }
     if (!task.dueDate) groups.inbox.push(task);
-    else if (task.dueDate < today || (task.overdueSince && task.dueDate === today)) groups.overdue.push(task);
-    else if (task.dueDate === today) groups.today.push(task);
+    // «Можно позже» не бывает просроченным: такое дело просто стоит на сегодня.
+    else if (task.priority !== 3 && (task.dueDate < today || (task.overdueSince && task.dueDate === today)))
+      groups.overdue.push(task);
+    else if (task.dueDate <= today) groups.today.push(task);
     else groups.upcoming.push(task);
   }
 

@@ -51,8 +51,11 @@
   const done = $derived(!!task.completedAt);
   const direction = $derived(offset > 0 ? 'right' : offset < 0 ? 'left' : '');
   const armed = $derived(Math.abs(offset) > THRESHOLD);
+  // «Можно позже» не бывает просроченным — красную пометку не показываем.
   const overdueFrom = $derived(
-    task.overdueSince ?? (task.dueDate && task.dueDate < clock.today ? task.dueDate : undefined),
+    task.priority === 3
+      ? undefined
+      : (task.overdueSince ?? (task.dueDate && task.dueDate < clock.today ? task.dueDate : undefined)),
   );
   const overdueLabel = $derived(overdueFrom ? formatDue(overdueFrom, clock.today) : '');
   // Крайний срок: «до пт, 23 окт.»; сегодня или прошёл — заметным цветом.
@@ -214,7 +217,7 @@
             </span>
           {/if}
           {#if task.notes}
-            <svg class="note-ic" viewBox="0 0 24 24" aria-label="Есть заметка"><path d="M5 6h14M5 11h14M5 16h9" /></svg>
+            <span class="note" title="Заметка">{task.notes}</span>
           {/if}
         </span>
       {/if}
@@ -455,13 +458,14 @@
     stroke-linejoin: round;
   }
 
-  .note-ic {
-    width: 14px;
-    height: 14px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
+  /* Начало заметки одной строкой. */
+  .note {
+    flex: 1 1 100%;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--fg-3);
   }
 
   .restore {

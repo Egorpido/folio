@@ -139,6 +139,15 @@ describe('хранилище дел', () => {
     expect((await db.tasks.get(removedEarlier.id))?.deletedAt).toBeTypeOf('number');
   });
 
+  it('«Можно позже» переносится без отметки «просрочено» и снимает старую', async () => {
+    const later = await createTask({ title: 'Когда-нибудь', dueDate: '2026-10-10', priority: 3 });
+    const old = await createTask({ title: 'Было просрочено', dueDate: '2026-10-12', overdueSince: '2026-10-09', priority: 3 });
+    await rolloverOverdue('2026-10-12');
+    expect(await db.tasks.get(later.id)).toMatchObject({ dueDate: '2026-10-12' });
+    expect((await db.tasks.get(later.id))?.overdueSince).toBeUndefined();
+    expect((await db.tasks.get(old.id))?.overdueSince).toBeUndefined();
+  });
+
   it('не трогает несуществующее дело', async () => {
     expect(await updateTask('нет-такого', { title: 'x' })).toBeUndefined();
     await deleteTask('нет-такого');

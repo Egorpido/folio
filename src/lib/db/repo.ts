@@ -61,13 +61,20 @@ export const uncompleteTask = (id: string) => updateTask(id, { completedAt: unde
 export async function rolloverOverdue(today: string): Promise<number> {
   const at = Date.now();
   return db.transaction('rw', db.tasks, db.changes, async () => {
+    // «Можно позже» (priority 3) переезжает тихо: без отметки «просрочено» (решение владельца 27.10.2026).
     const stale = await db.tasks
-      .filter((t) => !t.deletedAt && !t.completedAt && !!t.dueDate && t.dueDate < today)
+      .filter(
+        (t) =>
+          !t.deletedAt &&
+          !t.completedAt &&
+          !!t.dueDate &&
+          (t.dueDate < today || (t.priority === 3 && !!t.overdueSince)),
+      )
       .toArray();
     for (const task of stale) {
       const next = applyPatch(task, {
-        dueDate: today,
-        overdueSince: task.overdueSince ?? task.dueDate,
+        dueDate: task.dueDate! < today ? today : task.dueDate,
+        overdueSince: task.priority === 3 ? undefined : (task.overdueSince ?? task.dueDate),
         updatedAt: at,
         rev: task.rev + 1,
       });
