@@ -91,14 +91,26 @@
   // Для текущего текста ИИ можно выключить нажатием на подсказку «✨ Разберёт ИИ».
   let aiOff = $state(false);
   const aiWillRun = $derived(
-    isAiReady() && ai.settings.autoMin > 0 && text.trim().length >= ai.settings.autoMin,
+    isAiReady() && ai.settings.aiMinChars > 0 && text.trim().length >= ai.settings.aiMinChars,
   );
 
   // «Ввод» на клавиатуре: длинный текст — ИИ, короткий — обычное добавление.
-  function submit(event: SubmitEvent) {
-    event.preventDefault();
+  function route() {
     if (aiWillRun && !aiOff) void askAi();
     else void addPlain();
+  }
+
+  function submit(event: SubmitEvent) {
+    event.preventDefault();
+    route();
+  }
+
+  // В форме нет кнопки отправки, а без неё iPhone может не отправлять форму по «вводу».
+  // Поэтому «ввод» ловим прямо в поле.
+  function onKeydown(event: KeyboardEvent) {
+    if (event.key !== 'Enter' || event.isComposing) return;
+    event.preventDefault();
+    route();
   }
 
   // Кнопка ↑ и короткий текст: добавить как есть, без ИИ.
@@ -148,7 +160,8 @@
           {ai.busy ? 'ИИ разбирает…' : 'Разберёт ИИ'}
         </button>
       {/if}
-      {#each hints as hint (hint.kind)}
+      <!-- Когда текст уйдёт ИИ, подсказки даты, времени и важности не нужны — ИИ разберёт всё сам. -->
+      {#each aiWillRun && !aiOff ? [] : hints as hint (hint.kind)}
         <!-- Нажатие: считать это слово обычным текстом (или вернуть распознавание). -->
         <button
           type="button"
@@ -183,6 +196,7 @@
           aiOff = false;
         }
       }}
+      onkeydown={onKeydown}
       onfocus={() => (ui.composing = true)}
       onblur={() => (ui.composing = false)}
       type="text"

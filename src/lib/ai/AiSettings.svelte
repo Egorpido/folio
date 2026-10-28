@@ -107,10 +107,10 @@
 
     <label class="field">
       <span>Когда разбирать ИИ</span>
-      <select value={String(ai.settings.autoMin)} onchange={(e) => saveSettings({ autoMin: Number(e.currentTarget.value) })}>
+      <select value={String(ai.settings.aiMinChars)} onchange={(e) => saveSettings({ aiMinChars: Number(e.currentTarget.value) })}>
+        <option value="20">Текст от 20 знаков</option>
         <option value="30">Текст от 30 знаков</option>
         <option value="50">Текст от 50 знаков</option>
-        <option value="80">Текст от 80 знаков</option>
         <option value="0">Никогда</option>
       </select>
       <small>Длинный текст по «вводу» уходит ИИ, короткий добавляется как есть. Кнопка ↑ всегда добавляет без ИИ.</small>

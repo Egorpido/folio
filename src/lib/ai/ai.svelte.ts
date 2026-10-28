@@ -23,11 +23,11 @@ export interface AiSettings {
   key: string;
   model: string;
   /** С какой длины текста «ввод» отдаёт его ИИ. 0 — никогда (только обычный ввод). */
-  autoMin: number;
+  aiMinChars: number;
 }
 
 const KEY = 'folio:ai';
-const DEFAULTS: AiSettings = { provider: 'routerai', baseUrl: PROVIDERS[0].baseUrl, key: '', model: MODELS[0].id, autoMin: 50 };
+const DEFAULTS: AiSettings = { provider: 'routerai', baseUrl: PROVIDERS[0].baseUrl, key: '', model: MODELS[0].id, aiMinChars: 20 };
 
 function read(): AiSettings {
   try {
