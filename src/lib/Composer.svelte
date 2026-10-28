@@ -95,7 +95,12 @@
   );
 
   // «Ввод» на клавиатуре: длинный текст — ИИ, короткий — обычное добавление.
+  // Защита от двойного нажатия: второй вызов в течение полсекунды игнорируется.
+  let routeLocked = false;
   function route() {
+    if (routeLocked) return;
+    routeLocked = true;
+    setTimeout(() => (routeLocked = false), 500);
     if (aiWillRun && !aiOff) void askAi();
     else void addPlain();
   }
@@ -113,7 +118,7 @@
     route();
   }
 
-  // Кнопка ↑ и короткий текст: добавить как есть, без ИИ.
+  // Короткий текст или ИИ выключен подсказкой: добавить как есть.
   async function addPlain() {
     const raw = text.trim();
     if (!raw) return;
@@ -157,7 +162,7 @@
           onclick={() => (aiOff = !aiOff)}
         >
           <svg class="spark" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3.5l1.7 4.8 4.8 1.7-4.8 1.7L11 16.5l-1.7-4.8L4.5 10l4.8-1.7z" /><path d="M18 14.5l.75 2 2 .75-2 .75-.75 2-.75-2-2-.75 2-.75z" /></svg>
-          {ai.busy ? 'ИИ разбирает…' : 'Разберёт ИИ'}
+          {ai.busy ? 'ИИ разбирает…' : aiOff ? 'Без ИИ' : 'Разберёт ИИ'}
         </button>
       {/if}
       <!-- Когда текст уйдёт ИИ, подсказки даты, времени и важности не нужны — ИИ разберёт всё сам. -->
@@ -212,9 +217,9 @@
       type="button"
       class="send"
       disabled={!text.trim() || ai.busy}
-      aria-label="Добавить без ИИ"
+      aria-label="Добавить"
       onpointerdown={(e) => e.preventDefault()}
-      onclick={addPlain}
+      onclick={route}
     >
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18.5V6M6.5 11.5L12 6l5.5 5.5" /></svg>
     </button>
